@@ -351,13 +351,16 @@ if __name__ == "__main__":
 
     if hps.problem=='cifar10':
         hps.encoder_name = 'resnet41'
+        hps.image_channel=3
     elif hps.problem=='mnist':
         hps.encoder_name = 'resnet9'
         hps.rep_size = 16
+        hps.image_channel = 1
 
     model = SDIM(rep_size=hps.rep_size,
                  mi_units=hps.mi_units,
                  encoder_name=hps.encoder_name,
+                 image_channel=hps.image_channel
                  ).to(hps.device)
     optimizer = Adam(model.parameters(), lr=hps.lr)
 

@@ -68,7 +68,7 @@ def compute_dim_loss(l_enc, m_enc, measure, mode):
 
 
 class SDIM(torch.nn.Module):
-    def __init__(self, rep_size=64, n_classes=10, mi_units=128, encoder_name='resnet19'):
+    def __init__(self, rep_size=64, n_classes=10, mi_units=128, encoder_name='resnet19', image_channel=1):
         super().__init__()
         self.rep_size = rep_size
         self.n_classes = n_classes
@@ -78,7 +78,7 @@ class SDIM(torch.nn.Module):
 
         # build encoder
         n = int(encoder_name.strip('resnet'))
-        self.encoder = resnet.build_resnet_32x32(n, fc_size=rep_size)  # output a representation
+        self.encoder = resnet.build_resnet_32x32(n, fc_size=rep_size, image_channel=image_channel)  # output a representation
         print('==> # encoder parameters {}'.format(cal_parameters(self.encoder)))
 
         self.task_idx = (3, -1)

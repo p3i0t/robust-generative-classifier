@@ -79,13 +79,13 @@ class BasicBlock(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=10):
+    def __init__(self, block, num_blocks, num_classes=10, image_channel=1):
         super(ResNet, self).__init__()
         self.in_channel = 32
 
         multiplier = self.in_channel
 
-        self.conv1 = nn.Conv2d(3, multiplier, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(image_channel, multiplier, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(multiplier)
 
         # 4 stages resnet
@@ -142,10 +142,10 @@ class ResNet(nn.Module):
             return out_list[-1]
 
 
-def build_resnet_32x32(n=41, fc_size=10):
+def build_resnet_32x32(n=41, fc_size=10, image_channel=3):
     assert (n - 1) % 8 == 0, '{} should be expressed in form of 6n+1'.format(n)
     block_depth = int((n - 1) / 8)
-    return ResNet(BasicBlock, [block_depth]*4, num_classes=fc_size)
+    return ResNet(BasicBlock, [block_depth]*4, num_classes=fc_size, image_channel=image_channel)
 
 #
 # def resnet20():
