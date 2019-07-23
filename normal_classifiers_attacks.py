@@ -155,7 +155,7 @@ def fgsm_attack(image, epsilon, data_grad):
     # Collect the element-wise sign of the data gradient
     sign_data_grad = data_grad.sign()
     # Create the perturbed image by adjusting each pixel of the input image
-    perturbed_image = image + epsilon*sign_data_grad
+    perturbed_image = image + epsilon * sign_data_grad
     # Adding clipping to maintain [0,1] range
     # perturbed_image = torch.clamp(perturbed_image, 0, 1)
     # Return the perturbed image
@@ -308,16 +308,16 @@ if __name__ == "__main__":
 
     hps.device = torch.device("cuda" if use_cuda else "cpu")
 
-    if hps.problem=='cifar10':
-        hps.encoder_name = 'resnet51'
-        hps.image_channel=3
-    elif hps.problem=='mnist':
-        hps.encoder_name = 'resnet9'
-        hps.rep_size = 16
+    if hps.problem == 'cifar10':
+        hps.image_channel = 3
+    elif hps.problem == 'mnist':
         hps.image_channel = 1
 
-    model = build_resnet_32x32(n=9, fc_size=hps.n_classes, image_channel=hps.image_channel).to(hps.device)
-    hps.encoder_name = 'resnet9'
+    n_encoder_layers = int(hps.encoder_name.strip('resnet'))
+    model = build_resnet_32x32(n=n_encoder_layers,
+                               fc_size=hps.n_classes,
+                               image_channel=hps.image_channel
+                               ).to(hps.device)
 
     optimizer = Adam(model.parameters(), lr=hps.lr)
 
