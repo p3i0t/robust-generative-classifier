@@ -96,7 +96,7 @@ def train(model, optimizer, hps):
         if np.mean(loss_list) < min_loss:
             min_loss = np.mean(loss_list)
             torch.save(model.state_dict(),
-                       os.path.join(hps.log_dir, '{}_{}.pth'.format(model.encoder_name, hps.problem)))
+                       os.path.join(hps.log_dir, '{}_{}.pth'.format(hps.encoder_name, hps.problem)))
 
         model.eval()
         # Evaluate accuracy on test set.
@@ -117,7 +117,7 @@ def inference(model, hps):
     torch.manual_seed(hps.seed)
     np.random.seed(hps.seed)
 
-    checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(model.encoder_name, hps.problem))
+    checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(hps.encoder_name, hps.problem))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
     dataset = get_dataset(dataset=hps.problem, train=True)
@@ -230,7 +230,7 @@ def fgsm_evaluation(model, hps):
     epsilons = [0., 0.05, .1, 0.15, .2, 0.25, .3]
 
     print("load pre-trained model")
-    checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(model.encoder_name, hps.problem))
+    checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(hps.encoder_name, hps.problem))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
     accuracies = []
     examples = []
@@ -242,7 +242,7 @@ def fgsm_evaluation(model, hps):
         examples.append(ex)
 
     fgsm_checkpoint = dict(zip(epsilons, accuracies))
-    checkpoint_path = os.path.join(hps.log_dir, '{}_{}_fgsm.pth'.format(model.encoder_name, hps.problem))
+    checkpoint_path = os.path.join(hps.log_dir, '{}_{}_fgsm.pth'.format(hps.encoder_name, hps.problem))
     torch.save(fgsm_checkpoint, checkpoint_path)
 
 
@@ -316,7 +316,7 @@ if __name__ == "__main__":
         hps.rep_size = 16
         hps.image_channel = 1
 
-    model = build_resnet_32x32(n=9, fc_size=hps.n_classes, image_channel=hps.image_channel)
+    model = build_resnet_32x32(n=9, fc_size=hps.n_classes, image_channel=hps.image_channel).to(hps.device)
     hps.encoder_name = 'resnet9'
 
     optimizer = Adam(model.parameters(), lr=hps.lr)
