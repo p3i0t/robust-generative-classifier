@@ -129,7 +129,7 @@ def inference(model, hps):
         x = x.to(hps.device)
         y = y.to(hps.device)
 
-        preds = model.inference(x).argmax(dim=1)
+        preds = model(x).argmax(dim=1)
         acc = (preds == y).float().mean()
         acc_list.append(acc.item())
 
@@ -181,7 +181,7 @@ def fgsm_evaluation(model, hps):
             x.requires_grad = True
 
             # Forward pass the data through the model
-            output = model.inference(x, log_softmax=True)
+            output = F.log_softmax(model(x), dim=1)
             init_pred = output.max(1, keepdim=True)[1]  # get the index of the max log-probability
 
             # If the initial prediction is wrong, dont bother attacking, just move on
@@ -204,7 +204,7 @@ def fgsm_evaluation(model, hps):
             perturbed_data = fgsm_attack(x, epsilon, data_grad)
 
             # Re-classify the perturbed image
-            output = model.inference(perturbed_data, log_softmax=True)
+            output = model(perturbed_data)
 
             # Check for success
             final_pred = output.max(1, keepdim=True)[1]  # get the index of the max log-probability
