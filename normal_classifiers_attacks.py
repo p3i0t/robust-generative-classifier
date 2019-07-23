@@ -227,7 +227,7 @@ def fgsm_evaluation(model, hps):
         # Return the accuracy and an adversarial example
         return final_acc, adv_examples
 
-    epsilons = [0., .1, .2, .3]
+    epsilons = [0., 0.05, .1, 0.15, .2, 0.25, .3]
 
     print("load pre-trained model")
     checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(model.encoder_name, hps.problem))
@@ -240,6 +240,10 @@ def fgsm_evaluation(model, hps):
         acc, ex = test(model, hps, eps)
         accuracies.append(acc)
         examples.append(ex)
+
+    fgsm_checkpoint = dict(zip(epsilons, accuracies))
+    checkpoint_path = os.path.join(hps.log_dir, '{}_{}_fgsm.pth'.format(model.encoder_name, hps.problem))
+    torch.save(fgsm_checkpoint, checkpoint_path)
 
 
 if __name__ == "__main__":
@@ -304,8 +308,16 @@ if __name__ == "__main__":
 
     hps.device = torch.device("cuda" if use_cuda else "cpu")
 
-    model = build_resnet_32x32(n=31, fc_size=hps.n_classes)
-    hps.encoder_name = 'resnet31'
+    if hps.problem=='cifar10':
+        hps.encoder_name = 'resnet51'
+        hps.image_channel=3
+    elif hps.problem=='mnist':
+        hps.encoder_name = 'resnet9'
+        hps.rep_size = 16
+        hps.image_channel = 1
+
+    model = build_resnet_32x32(n=9, fc_size=hps.n_classes, image_channel=hps.image_channel)
+    hps.encoder_name = 'resnet9'
 
     optimizer = Adam(model.parameters(), lr=hps.lr)
 
