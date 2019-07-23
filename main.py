@@ -113,7 +113,10 @@ def train(model, optimizer, hps):
         ))
         if np.mean(loss_list) < min_loss:
             min_loss = np.mean(loss_list)
-            torch.save(model.state_dict(), os.path.join(hps.log_dir, 'sdim_{}_{}.pth'.format(model.encoder_name, hps.problem)))
+            checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}.pth'.format(model.encoder_name,
+                                                                                    hps.problem,
+                                                                                    hps.rep_size))
+            torch.save(model.state_dict(), checkpoint_path)
 
         model.eval()
         # Evaluate accuracy on test set.
@@ -134,11 +137,12 @@ def inference(model, hps):
     torch.manual_seed(hps.seed)
     np.random.seed(hps.seed)
 
-    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}.pth'.format(model.encoder_name, hps.problem))
+    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}.pth'.format(model.encoder_name,
+                                                                            hps.problem,
+                                                                            hps.rep_size))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
     dataset = get_dataset(dataset=hps.problem, train=True)
-    #test_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=False)
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=True)
 
     acc_list = []
@@ -247,7 +251,9 @@ def fgsm_evaluation(model, hps):
     epsilons = [0., 0.05, .1, 0.15, .2, 0.25, .3]
 
     print("load pre-trained model")
-    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}.pth'.format(model.encoder_name, hps.problem))
+    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}.pth'.format(model.encoder_name,
+                                                                            hps.problem,
+                                                                            hps.rep_size))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
     accuracies = []
     examples = []
@@ -259,7 +265,9 @@ def fgsm_evaluation(model, hps):
         examples.append(ex)
 
     fgsm_checkpoint = dict(zip(epsilons, accuracies))
-    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_fgsm.pth'.format(model.encoder_name, hps.problem))
+    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}_fgsm.pth'.format(model.encoder_name,
+                                                                                 hps.problem,
+                                                                                 hps.rep_size))
     torch.save(fgsm_checkpoint, checkpoint_path)
 
 
@@ -268,7 +276,9 @@ def noise_attack(model, hps):
     torch.manual_seed(hps.seed)
     np.random.seed(hps.seed)
 
-    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}.pth'.format(model.encoder_name, hps.problem))
+    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}.pth'.format(model.encoder_name,
+                                                                            hps.problem,
+                                                                            hps.rep_size))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
     dataset = get_dataset(dataset=hps.problem, train=False)
@@ -336,6 +346,8 @@ if __name__ == "__main__":
                         default=256, help="output size of 1x1 conv network for mutual information estimation")
     parser.add_argument("--rep_size", type=int,
                         default=128, help="size of the global representation from encoder")
+    parser.add_argument("--encoder_name", type=str, default='resnet25',
+                        help="encoder name: resnet#")
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
 
@@ -349,12 +361,9 @@ if __name__ == "__main__":
 
     hps.device = torch.device("cuda" if use_cuda else "cpu")
 
-    if hps.problem=='cifar10':
-        hps.encoder_name = 'resnet41'
-        hps.image_channel=3
-    elif hps.problem=='mnist':
-        hps.encoder_name = 'resnet9'
-        hps.rep_size = 16
+    if hps.problem == 'cifar10':
+        hps.image_channel = 3
+    elif hps.problem == 'mnist':
         hps.image_channel = 1
 
     model = SDIM(rep_size=hps.rep_size,
