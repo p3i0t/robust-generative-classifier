@@ -107,7 +107,7 @@ class SDIM(torch.nn.Module):
         G = G.view(N, local_units, -1)
         return L, G
 
-    def forward(self, x, y, measure='JSD', mode='fd'):
+    def eval_losses(self, x, y, measure='JSD', mode='fd'):
         out_list = self.encoder(x, return_full_list=True)
         rep = out_list[-1]
         L, G = self._T(out_list)

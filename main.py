@@ -90,7 +90,7 @@ def train(model, optimizer, hps):
 
             optimizer.zero_grad()
 
-            loss, mi_loss, nll_loss, ll_margin = model(x, y)
+            loss, mi_loss, nll_loss, ll_margin = model.eval_losses(x, y)
             loss.backward()
             optimizer.step()
 
@@ -126,7 +126,7 @@ def train(model, optimizer, hps):
                 x = x.to(hps.device)
                 y = y.to(hps.device)
 
-                preds = model.inference(x).argmax(dim=1)
+                preds = model(x).argmax(dim=1)
                 acc = (preds == y).float().mean()
                 acc_list.append(acc.item())
             print('Test accuracy: {:.3f}'.format(np.mean(acc_list)))
@@ -150,7 +150,7 @@ def inference(model, hps):
         x = x.to(hps.device)
         y = y.to(hps.device)
 
-        preds = model.inference(x).argmax(dim=1)
+        preds = model(x).argmax(dim=1)
         acc = (preds == y).float().mean()
         acc_list.append(acc.item())
 
@@ -164,7 +164,7 @@ def inference(model, hps):
         x = x.to(hps.device)
         y = y.to(hps.device)
 
-        preds = model.inference(x).argmax(dim=1)
+        preds = model(x).argmax(dim=1)
         acc = (preds == y).float().mean()
         acc_list.append(acc.item())
 
@@ -202,7 +202,7 @@ def fgsm_evaluation(model, hps):
             x.requires_grad = True
 
             # Forward pass the data through the model
-            output = model.inference(x, log_softmax=True)
+            output = model(x, log_softmax=True)
             init_pred = output.max(1, keepdim=True)[1]  # get the index of the max log-probability
 
             # If the initial prediction is wrong, dont bother attacking, just move on
@@ -225,7 +225,7 @@ def fgsm_evaluation(model, hps):
             perturbed_data = fgsm_attack(x, epsilon, data_grad)
 
             # Re-classify the perturbed image
-            output = model.inference(perturbed_data, log_softmax=True)
+            output = model(perturbed_data, log_softmax=True)
 
             # Check for success
             final_pred = output.max(1, keepdim=True)[1]  # get the index of the max log-probability
@@ -293,7 +293,7 @@ def noise_attack(model, hps):
         print('x bound ', x.min(), x.max())
         #noise = torch.randn(x.size()).to(hps.device) * epsilon
         y = y.to(hps.device)
-        ll = model.inference(x)
+        ll = model(x)
         print('Label: {}, predict: {}, ll list: {}'.format(y.item(), ll.argmax().item(), ll.cpu().detach().numpy()))
 
 

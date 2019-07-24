@@ -13,6 +13,7 @@ from torchvision.utils import  save_image
 from torch.optim import Adam
 
 from resnet import build_resnet_32x32
+from sdim import SDIM
 
 from advertorch.attacks import LinfPGDAttack
 
@@ -87,7 +88,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_batch_train", type=int,
                         default=128, help="Minibatch size")
     parser.add_argument("--n_batch_test", type=int,
-                        default=200, help="Minibatch size")
+                        default=64, help="Minibatch size")
     parser.add_argument("--optimizer", type=str,
                         default="adam", help="adam or adamax")
     parser.add_argument("--lr", type=float, default=0.001,
@@ -127,18 +128,30 @@ if __name__ == "__main__":
     elif hps.problem == 'mnist':
         hps.image_channel = 1
 
-    n_encoder_layers = int(hps.encoder_name.strip('resnet'))
-    model = build_resnet_32x32(n=n_encoder_layers,
-                               fc_size=hps.n_classes,
-                               image_channel=hps.image_channel
-                               ).to(hps.device)
+    prefix = ''
+    if hps.encoder_name.starts_with('sdim_'):
+        prefix = 'sdim_'
+        hps.encoder_name = hps.encoder_name.strip('sdim_')
+        model = SDIM(rep_size=hps.rep_size,
+                     mi_units=hps.mi_units,
+                     encoder_name=hps.encoder_name,
+                     image_channel=hps.image_channel
+                     ).to(hps.device)
 
-    optimizer = Adam(model.parameters(), lr=hps.lr)
+        checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}.pth'.format(hps.encoder_name, hps.problem, hps.rep_size))
+        model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
+    else:
+        n_encoder_layers = int(hps.encoder_name.strip('resnet'))
+        model = build_resnet_32x32(n=n_encoder_layers,
+                                   fc_size=hps.n_classes,
+                                   image_channel=hps.image_channel
+                                   ).to(hps.device)
 
+        checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(hps.encoder_name, hps.problem))
+        model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
+
+    print('Model name: {}'.format(hps.encoder_name))
     print('==>  # Model parameters: {}.'.format(cal_parameters(model)))
-
-    checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(hps.encoder_name, hps.problem))
-    model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
     adversary = LinfPGDAttack(
         model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=0.3,
@@ -162,7 +175,7 @@ if __name__ == "__main__":
         clndata, target = clndata.to(hps.device), target.to(hps.device)
         path = os.path.join(image_dir, 'original_{}.png'.format(batch_id))
         save_image(clndata, path, normalize=True)
-        
+
         with torch.no_grad():
             output = model(clndata)
         test_clnloss += F.cross_entropy(
@@ -171,7 +184,7 @@ if __name__ == "__main__":
         clncorrect += pred.eq(target.view_as(pred)).sum().item()
 
         advdata = adversary.perturb(clndata, target)
-        path = os.path.join(image_dir, 'perturbed_{}.png'.format(batch_id))
+        path = os.path.join(image_dir, '{}perturbed_{}.png'.format(prefix, batch_id))
         save_image(advdata, path, normalize=True)
 
         with torch.no_grad():
