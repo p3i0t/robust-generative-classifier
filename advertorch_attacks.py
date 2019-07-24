@@ -15,7 +15,7 @@ from torch.optim import Adam
 from resnet import build_resnet_32x32
 from sdim import SDIM
 
-from advertorch.attacks import LinfPGDAttack
+from advertorch.attacks import LinfPGDAttack, L2PGDAttack, CarliniWagnerL2Attack
 
 
 def cal_parameters(model):
@@ -75,6 +75,8 @@ if __name__ == "__main__":
                         help="Perform noise attack")
     parser.add_argument("--log_dir", type=str,
                         default='./logs', help="Location to save logs")
+    parser.add_argument("--attack", type=str, default='pgdinf',
+                        help="Location of data")
 
     # Dataset hyperparams:
     parser.add_argument("--problem", type=str, default='cifar10',
@@ -153,10 +155,23 @@ if __name__ == "__main__":
     print('Model name: {}'.format(hps.encoder_name))
     print('==>  # Model parameters: {}.'.format(cal_parameters(model)))
 
-    adversary = LinfPGDAttack(
-        model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=0.3,
-        nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=0.0,
-        clip_max=1.0, targeted=False)
+    if hps.attack == 'pgdinf':
+        adversary = LinfPGDAttack(
+            model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=0.3,
+            nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=0.0,
+            clip_max=1.0, targeted=False)
+    elif hps.attack == 'pgd2':
+        adversary = L2PGDAttack(
+            model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=0.3,
+            nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=0.0,
+            clip_max=1.0, targeted=False)
+    elif hps.attack == 'cw':
+        adversary = CarliniWagnerL2Attack(
+            model, loss_fn=nn.CrossEntropyLoss(reduction="sum"),
+            num_classes=10,
+            clip_min=0.0,
+            clip_max=1.0,
+            targeted=False)
 
     dataset = get_dataset(dataset=hps.problem, train=False)
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)

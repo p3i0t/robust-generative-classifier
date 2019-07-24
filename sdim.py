@@ -135,7 +135,7 @@ class SDIM(torch.nn.Module):
         loss = mi_loss + nll_loss + ll_margin
         return loss, mi_loss, nll_loss, ll_margin
 
-    def inference(self, x, log_softmax=False):
+    def forward(self, x, log_softmax=False):
         rep = self.encoder(x, return_full_list=True)[-1]
         log_lik = self.class_conditional(rep)
         if log_softmax:
