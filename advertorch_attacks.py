@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+from torchvision.utils import  save_image
 from torch.optim import Adam
 
 from resnet import build_resnet_32x32
@@ -153,8 +154,15 @@ if __name__ == "__main__":
     test_advloss = 0
     advcorrect = 0
 
-    for clndata, target in test_loader:
+    image_dir = 'images'
+    if not os.path.exists(image_dir):
+        os.mkdir(image_dir)
+
+    for batch_id, (clndata, target) in enumerate(test_loader):
         clndata, target = clndata.to(hps.device), target.to(hps.device)
+        path = os.path.join(image_dir, 'original_{}.png'.format(batch_id))
+        save_image(clndata, path, normalize=True)
+        
         with torch.no_grad():
             output = model(clndata)
         test_clnloss += F.cross_entropy(
@@ -163,6 +171,9 @@ if __name__ == "__main__":
         clncorrect += pred.eq(target.view_as(pred)).sum().item()
 
         advdata = adversary.perturb(clndata, target)
+        path = os.path.join(image_dir, 'perturbed_{}.png'.format(batch_id))
+        save_image(advdata, path, normalize=True)
+
         with torch.no_grad():
             output = model(advdata)
         test_advloss += F.cross_entropy(
