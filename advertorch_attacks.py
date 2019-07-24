@@ -131,7 +131,7 @@ if __name__ == "__main__":
         hps.image_channel = 1
 
     prefix = ''
-    if hps.encoder_name.starts_with('sdim_'):
+    if hps.encoder_name.startswith('sdim_'):
         prefix = 'sdim_'
         hps.encoder_name = hps.encoder_name.strip('sdim_')
         model = SDIM(rep_size=hps.rep_size,
