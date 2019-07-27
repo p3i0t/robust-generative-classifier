@@ -278,6 +278,7 @@ def ood_inference(model, hps):
 
     threshold_list = []
     for label_id in range(hps.n_classes):
+        # No data augmentation(crop_flip=False) when getting in-distribution thresholds
         dataset = get_dataset(dataset=hps.problem, train=True, label_id=label_id, crop_flip=False)
         in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
@@ -318,6 +319,24 @@ def ood_inference(model, hps):
     print('=====================================================')
     # ll_checkpoint = {'fashion': in_ll_list, 'mnist': out_ll_list}
     # torch.save(ll_checkpoint, 'ood_sdim_{}_{}_d{}.pth'.format(model.encoder_name, hps.problem, hps.rep_size))
+
+    shape = x.size()
+    shape[0] = 1000
+    # Noise as out-distribution samples
+    noises = torch.randn(shape).uniform_(-1., 1.).to(hps.device)
+    ll = model(noises)
+
+    reject_acc_list = []
+    for label_id in range(hps.n_classes):
+        # samples whose ll lower than threshold will be successfully rejected.
+        acc = (ll[:, label_id] < threshold_list[label_id]).float().mean().item()
+        reject_acc_list.append(acc)
+
+    print('==================== Noise OOD Summary ====================')
+    print('In-distribution dataset {}, Out-distribution dataset {}'.format(hps.problem, out_problem))
+    for label_id in range(hps.n_classes):
+        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_list[label_id])))
+    print('===========================================================')
 
 
 if __name__ == "__main__":
