@@ -297,6 +297,52 @@ def noise_attack(model, hps):
         print('Label: {}, predict: {}, ll list: {}'.format(y.item(), ll.argmax().item(), ll.cpu().detach().numpy()))
 
 
+def ood_inference(model, hps):
+    model.eval()
+    torch.manual_seed(hps.seed)
+    np.random.seed(hps.seed)
+
+    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}.pth'.format(model.encoder_name,
+                                                                            hps.problem,
+                                                                            hps.rep_size))
+    model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
+
+    dataset = get_dataset(dataset=hps.problem, train=False)
+    in_test_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=True)
+
+    print('Inference on {}'.format(hps.problem))
+    in_ll_list = []
+    for batch_id, (x, y) in enumerate(in_test_loader):
+        x = x.to(hps.device)
+        y = y.to(hps.device)
+        ll = model(x)
+
+        one_hots = torch.eye(len(ll[0]))[y].to(x.device)
+        ll = (ll * one_hots).sum(dim=1)  # (b, 1)
+        in_ll_list += list(ll.detach().cpu().numpy())
+
+    print('Log-likelihood, maximum {}, minimum {}'.format(max(in_ll_list), min(in_ll_list)))
+
+    if hps.problem == 'fashion':
+        out_problem = 'mnist'
+
+    print('Inference on {}'.format(out_problem))
+    dataset = get_dataset(dataset=out_problem, train=False)
+    out_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+
+    out_ll_list = []
+    for batch_id, (x, y) in enumerate(out_test_loader):
+        x = x.to(hps.device)
+        ll = model(x).max(dim=1)[0]  # get maximum
+
+        out_ll_list += list(ll.detach().cpu().numpy())
+
+    print('Log-likelihood, maximum {}, minimum {}'.format(max(out_ll_list), min(out_ll_list)))
+
+    ll_checkpoint = {'fashion': in_ll_list, 'mnist': out_ll_list}
+    torch.save(ll_checkpoint, 'ood_sdim_{}_{}_d{}.pth'.format(model.encoder_name, hps.problem, hps.rep_size))
+
+
 if __name__ == "__main__":
     # This enables a ctr-C without triggering errors
     import signal
@@ -306,6 +352,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--verbose", action='store_true', help="Verbose mode")
     parser.add_argument("--inference", action="store_true",
+                        help="Used in inference mode")
+    parser.add_argument("--ood_inference", action="store_true",
                         help="Used in inference mode")
     parser.add_argument("--fgsm_attack", action="store_true",
                         help="Perform FGSM attack")
@@ -380,5 +428,7 @@ if __name__ == "__main__":
         noise_attack(model, hps)
     elif hps.inference:
         inference(model, hps)
+    elif hps.ood_inference:
+        ood_inference(model, hps)
     else:
         train(model, optimizer, hps)
