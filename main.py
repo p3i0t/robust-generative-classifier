@@ -291,13 +291,14 @@ def ood_inference(model, hps):
             correct_idx = ll.argmax(dim=1) == y
 
             ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
-            in_ll_list += list(ll_.detach().cpu().numpy())
+            in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
 
         print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), min(in_ll_list)))
         threshold_list.append(min(in_ll_list))  # class mean as threshold
 
     print('Inference on {}'.format(out_problem))
-    dataset = get_dataset(dataset=out_problem, train=False) # eval on whole test set
+    # eval on whole test set
+    dataset = get_dataset(dataset=out_problem, train=False)
     out_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
     reject_acc_dict = dict([(str(label_id), [])for label_id in range(hps.n_classes)])
