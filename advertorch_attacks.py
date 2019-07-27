@@ -90,7 +90,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_batch_train", type=int,
                         default=128, help="Minibatch size")
     parser.add_argument("--n_batch_test", type=int,
-                        default=64, help="Minibatch size")
+                        default=16, help="Minibatch size")
     parser.add_argument("--optimizer", type=str,
                         default="adam", help="adam or adamax")
     parser.add_argument("--lr", type=float, default=0.001,
@@ -162,9 +162,9 @@ if __name__ == "__main__":
             clip_max=1.0, targeted=False)
     elif hps.attack == 'pgd2':
         adversary = L2PGDAttack(
-            model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=0.3,
+            model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=9.3,
             nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=0.0,
-            clip_max=1.0, targeted=False)
+            clip_max=10.0, targeted=False)
     elif hps.attack == 'cw':
         adversary = CarliniWagnerL2Attack(
             model, loss_fn=nn.CrossEntropyLoss(reduction="sum"),
@@ -193,6 +193,7 @@ if __name__ == "__main__":
 
         with torch.no_grad():
             output = model(clndata)
+        print('output ', output)
         test_clnloss += F.cross_entropy(
             output, target, reduction='sum').item()
         pred = output.max(1, keepdim=True)[1]
@@ -204,11 +205,12 @@ if __name__ == "__main__":
 
         with torch.no_grad():
             output = model(advdata)
+        print('perturbed ', output)
         test_advloss += F.cross_entropy(
             output, target, reduction='sum').item()
         pred = output.max(1, keepdim=True)[1]
         advcorrect += pred.eq(target.view_as(pred)).sum().item()
-
+        exit(0)
     test_clnloss /= len(test_loader.dataset)
     print('\nTest set: avg cln loss: {:.4f},'
           ' cln acc: {}/{} ({:.0f}%)\n'.format(
