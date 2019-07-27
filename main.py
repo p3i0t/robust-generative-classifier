@@ -321,9 +321,8 @@ def ood_inference(model, hps):
     # torch.save(ll_checkpoint, 'ood_sdim_{}_{}_d{}.pth'.format(model.encoder_name, hps.problem, hps.rep_size))
 
     shape = x.size()
-    shape[0] = 1000
     # Noise as out-distribution samples
-    noises = torch.randn(shape).uniform_(-1., 1.).to(hps.device)
+    noises = torch.randn((1000, shape[1], shape[2], shape[3])).uniform_(-1., 1.).to(hps.device)
     ll = model(noises)
 
     reject_acc_list = []
