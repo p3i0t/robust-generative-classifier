@@ -23,25 +23,49 @@ def cal_parameters(model):
 
 def get_dataset(dataset='mnist', train=True):
     if dataset == 'mnist':
-        dataset = datasets.MNIST('data/MNIST', train=train, download=True,
-                                 transform=transforms.Compose([
-                                       transforms.Resize((32, 32)),
-                                       transforms.ToTensor(),
-                                   ]))
+        if train:
+            transform = transforms.Compose([
+                transforms.Resize((32, 32)),
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            ])
+        else:
+            transform = transforms.Compose([
+                transforms.Resize((32, 32)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            ])
+
+        dataset = datasets.MNIST('data/MNIST', train=train, download=True, transform=transform)
+
     elif dataset == 'fashion':
-        dataset = datasets.FashionMNIST('data/FashionMNIST', train=train, download=True,
-                                        transform=transforms.Compose([
-                                            transforms.Resize((32, 32)),
-                                            transforms.ToTensor(),
-                                        ]))
+        if train:
+            transform = transforms.Compose([
+                transforms.Resize((32, 32)),
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            ])
+        else:
+            transform = transforms.Compose([
+                transforms.Resize((32, 32)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            ])
+
+        dataset = datasets.FashionMNIST('data/FashionMNIST', train=train, download=True, transform=transform)
+
     elif dataset == 'cifar10':
         if train:
             transform = transforms.Compose([
-                                            transforms.RandomCrop(32, padding=4),
-                                            transforms.RandomHorizontalFlip(),
-                                            transforms.ToTensor(),
-                                            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-                                        ])
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+            ])
         else:
             transform = transforms.Compose([
                 transforms.ToTensor(),
