@@ -13,70 +13,7 @@ from torch.optim import Adam
 
 from resnet import build_resnet_32x32
 
-
-def cal_parameters(model):
-    cnt = 0
-    for para in model.parameters():
-        cnt += para.numel()
-    return cnt
-
-
-def get_dataset(dataset='mnist', train=True):
-    if dataset == 'mnist':
-        if train:
-            transform = transforms.Compose([
-                transforms.Resize((32, 32)),
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            ])
-        else:
-            transform = transforms.Compose([
-                transforms.Resize((32, 32)),
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            ])
-
-        dataset = datasets.MNIST('data/MNIST', train=train, download=True, transform=transform)
-
-    elif dataset == 'fashion':
-        if train:
-            transform = transforms.Compose([
-                transforms.Resize((32, 32)),
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            ])
-        else:
-            transform = transforms.Compose([
-                transforms.Resize((32, 32)),
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            ])
-
-        dataset = datasets.FashionMNIST('data/FashionMNIST', train=train, download=True, transform=transform)
-
-    elif dataset == 'cifar10':
-        if train:
-            transform = transforms.Compose([
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-            ])
-        else:
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-            ])
-
-        dataset = datasets.CIFAR10('data/CIFAR10', train=train, download=True, transform=transform)
-    else:
-        print('dataset {} is not available'.format(dataset))
-
-    return dataset
+from utils import get_dataset, cal_parameters
 
 
 def train(model, optimizer, hps):

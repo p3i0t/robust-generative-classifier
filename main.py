@@ -15,71 +15,7 @@ from torch.optim import Adam
 from tensorboardX import SummaryWriter
 
 from sdim import SDIM
-
-
-def cal_parameters(model):
-    cnt = 0
-    for para in model.parameters():
-        cnt += para.numel()
-    return cnt
-
-
-def get_dataset(dataset='mnist', train=True):
-    if dataset == 'mnist':
-        if train:
-            transform = transforms.Compose([
-                                            transforms.Resize((32, 32)),
-                                            transforms.RandomCrop(32, padding=4),
-                                            transforms.RandomHorizontalFlip(),
-                                            transforms.ToTensor(),
-                                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                                        ])
-        else:
-            transform = transforms.Compose([
-                transforms.Resize((32, 32)),
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            ])
-
-        dataset = datasets.MNIST('data/MNIST', train=train, download=True, transform=transform)
-
-    elif dataset == 'fashion':
-        if train:
-            transform = transforms.Compose([
-                                            transforms.Resize((32, 32)),
-                                            transforms.RandomCrop(32, padding=4),
-                                            transforms.RandomHorizontalFlip(),
-                                            transforms.ToTensor(),
-                                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                                        ])
-        else:
-            transform = transforms.Compose([
-                transforms.Resize((32, 32)),
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            ])
-
-        dataset = datasets.FashionMNIST('data/FashionMNIST', train=train, download=True, transform=transform)
-
-    elif dataset == 'cifar10':
-        if train:
-            transform = transforms.Compose([
-                                            transforms.RandomCrop(32, padding=4),
-                                            transforms.RandomHorizontalFlip(),
-                                            transforms.ToTensor(),
-                                            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-                                        ])
-        else:
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-            ])
-
-        dataset = datasets.CIFAR10('data/CIFAR10', train=train, download=True, transform=transform)
-    else:
-        print('dataset {} is not available'.format(dataset))
-
-    return dataset
+from utils import get_dataset, cal_parameters
 
 
 def train(model, optimizer, hps):
@@ -327,7 +263,6 @@ def noise_attack(model, hps):
         print('x full of {:.3f}, predict: {}, ll list: {}'.format(eps, ll.argmax().item(), ll.cpu().detach().numpy()))
 
 
-
 def ood_inference(model, hps):
     model.eval()
     torch.manual_seed(hps.seed)
@@ -338,42 +273,50 @@ def ood_inference(model, hps):
                                                                             hps.rep_size))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
-    dataset = get_dataset(dataset=hps.problem, train=False)
-    in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=True)
-
-    print('Inference on {}'.format(hps.problem))
-    in_ll_list = []
-    for batch_id, (x, y) in enumerate(in_test_loader):
-        x = x.to(hps.device)
-        y = y.to(hps.device)
-        ll = model(x)
-
-        one_hots = torch.eye(len(ll[0]))[y].to(x.device)
-        ll = (ll * one_hots).sum(dim=1)  # (b, 1)
-        in_ll_list += list(ll.detach().cpu().numpy())
-
-    print('len: {}'.format(len(in_ll_list)))
-    print('Log-likelihood, last 10 elements, {}'.format(sorted(in_ll_list)[:1000]))
-
     if hps.problem == 'fashion':
         out_problem = 'mnist'
 
+    threshold_list = []
+    for label_id in range(hps.n_classes):
+        dataset = get_dataset(dataset=hps.problem, train=True, label_id=label_id)
+        in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+
+        print('Inference on {}, label_id {}'.format(hps.problem, label_id))
+        in_ll_list = []
+        for batch_id, (x, y) in enumerate(in_test_loader):
+            x = x.to(hps.device)
+            y = y.to(hps.device)
+            ll = model(x)
+
+            correct_idx = ll.argmax(dim=1) == y
+
+            ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
+            in_ll_list += list(ll_.detach().cpu().numpy())
+
+        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), min(in_ll_list)))
+        threshold_list.append(min(in_ll_list))  # class mean as threshold
+
     print('Inference on {}'.format(out_problem))
-    dataset = get_dataset(dataset=out_problem, train=False)
+    dataset = get_dataset(dataset=out_problem, train=False) # eval on whole test set
     out_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
-    out_ll_list = []
-    for batch_id, (x, y) in enumerate(out_test_loader):
+    reject_acc_dict = dict([(str(label_id), [])for label_id in range(hps.n_classes)])
+
+    for batch_id, (x, _) in enumerate(out_test_loader):
         x = x.to(hps.device)
-        ll = model(x).max(dim=1)[0]  # get maximum
+        ll = model(x)
+        for label_id in range(hps.n_classes):
+            # samples whose ll lower than threshold will be successfully rejected.
+            acc = (ll[:, label_id] < threshold_list[label_id]).float().mean()
+            reject_acc_dict[str(label_id)].append(acc)
 
-        out_ll_list += list(ll.detach().cpu().numpy())
-
-    print('len: {}'.format(len(out_ll_list)))
-    print('Log-likelihood, head 50 elements, {}'.format(sorted(out_ll_list)[-50:]))
-
-    ll_checkpoint = {'fashion': in_ll_list, 'mnist': out_ll_list}
-    torch.save(ll_checkpoint, 'ood_sdim_{}_{}_d{}.pth'.format(model.encoder_name, hps.problem, hps.rep_size))
+    print('==================== OOD Summary ====================')
+    print('In-distribution dataset {}, Out-distribution dataset {}'.format(hps.problem, out_problem))
+    for label_id in range(hps.n_classes):
+        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_dict[str(label_id)])))
+    print('=====================================================')
+    # ll_checkpoint = {'fashion': in_ll_list, 'mnist': out_ll_list}
+    # torch.save(ll_checkpoint, 'ood_sdim_{}_{}_d{}.pth'.format(model.encoder_name, hps.problem, hps.rep_size))
 
 
 if __name__ == "__main__":
