@@ -68,6 +68,7 @@ def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None):
     if label_id:
         # select samples with particular label
         idx = dataset.targets == label_id
+        print('Select samples with label: {}, # samples: {}'.format(label_id, idx.float().sum().item()))
         dataset.targets = dataset.targets[idx]
         dataset.data = dataset.data[idx]
     return dataset
