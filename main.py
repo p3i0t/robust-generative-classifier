@@ -315,7 +315,7 @@ def ood_inference(model, hps):
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
     dataset = get_dataset(dataset=hps.problem, train=False)
-    in_test_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=True)
+    in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=True)
 
     print('Inference on {}'.format(hps.problem))
     in_ll_list = []
@@ -328,7 +328,8 @@ def ood_inference(model, hps):
         ll = (ll * one_hots).sum(dim=1)  # (b, 1)
         in_ll_list += list(ll.detach().cpu().numpy())
 
-    print('Log-likelihood, maximum {}, minimum {}'.format(max(in_ll_list), min(in_ll_list)))
+    print('len: {}'.format(len(in_ll_list)))
+    print('Log-likelihood, last 10 elements, {}'.format(sorted(in_ll_list)[:1000]))
 
     if hps.problem == 'fashion':
         out_problem = 'mnist'
@@ -344,7 +345,8 @@ def ood_inference(model, hps):
 
         out_ll_list += list(ll.detach().cpu().numpy())
 
-    print('Log-likelihood, maximum {}, minimum {}'.format(max(out_ll_list), min(out_ll_list)))
+    print('len: {}'.format(len(out_ll_list)))
+    print('Log-likelihood, head 50 elements, {}'.format(sorted(out_ll_list)[-50:]))
 
     ll_checkpoint = {'fashion': in_ll_list, 'mnist': out_ll_list}
     torch.save(ll_checkpoint, 'ood_sdim_{}_{}_d{}.pth'.format(model.encoder_name, hps.problem, hps.rep_size))
