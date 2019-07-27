@@ -23,6 +23,7 @@ class ClassConditionalGaussianMixture(nn.Module):
         self.n_classes = n_classes
         self.embed_size = embed_size
         self.class_embed = nn.Embedding(n_classes, embed_size * 2)
+        #nn.init.xavier_uniform_(self.class_embed.weight)
 
     def log_lik(self, x, mean, log_sigma):
         tmp = math.log(2 * math.pi) + 2 * log_sigma + (x - mean).pow(2) * torch.exp(-2 * log_sigma)

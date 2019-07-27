@@ -281,20 +281,27 @@ def noise_attack(model, hps):
                                                                             hps.rep_size))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
+    hps.problem = 'mnist'
     dataset = get_dataset(dataset=hps.problem, train=False)
     test_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=True)
 
     epsilon = 1e-2
     for batch_id, (x, y) in enumerate(test_loader):
         if batch_id == 10:
-            exit(0)
+           break 
         print('Example ', batch_id + 1)
         x = x.to(hps.device)
-        print('x bound ', x.min(), x.max())
+        #print('x bound ', x.min(), x.max())
         #noise = torch.randn(x.size()).to(hps.device) * epsilon
         y = y.to(hps.device)
         ll = model(x)
         print('Label: {}, predict: {}, ll list: {}'.format(y.item(), ll.argmax().item(), ll.cpu().detach().numpy()))
+    
+    x = torch.zeros(x.size()).to(hps.device) 
+    for eps in range(10 + 1):
+        ll = model(x + eps/10)
+        print('x full of {:.3f}, predict: {}, ll list: {}'.format(eps, ll.argmax().item(), ll.cpu().detach().numpy()))
+
 
 
 def ood_inference(model, hps):
@@ -412,6 +419,8 @@ if __name__ == "__main__":
     if hps.problem == 'cifar10':
         hps.image_channel = 3
     elif hps.problem == 'mnist':
+        hps.image_channel = 1
+    elif hps.problem == 'fashion':
         hps.image_channel = 1
 
     model = SDIM(rep_size=hps.rep_size,
