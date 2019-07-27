@@ -278,7 +278,7 @@ def ood_inference(model, hps):
 
     threshold_list = []
     for label_id in range(hps.n_classes):
-        dataset = get_dataset(dataset=hps.problem, train=True, label_id=label_id)
+        dataset = get_dataset(dataset=hps.problem, train=True, label_id=label_id, crop_flip=False)
         in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
         print('Inference on {}, label_id {}'.format(hps.problem, label_id))

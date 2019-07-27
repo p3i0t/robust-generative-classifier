@@ -2,64 +2,66 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
 
-def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None):
+def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None, crop_flip=True):
     """
     Get a dataset.
     :param dataset: str, name of dataset.
     :param data_dir: str, base directory of data.
     :param train: bool, return train set if True, or test set if False.
     :param label_id: None or int, return data with particular label_id.
+    :param crop_flip: bool, whether use crop_flip as data augmentation.
     :return: pytorch dataset.
     """
-    if dataset == 'mnist':
-        if train:
-            transform = transforms.Compose([
+    transform_1d_crop_flip = transforms.Compose([
                                             transforms.Resize((32, 32)),
                                             transforms.RandomCrop(32, padding=4),
                                             transforms.RandomHorizontalFlip(),
                                             transforms.ToTensor(),
                                             transforms.Normalize((0.5,), (0.5,))  # 1-channel, scale to [-1, 1]
                                         ])
-        else:
-            transform = transforms.Compose([
+
+    transform_1d = transforms.Compose([
                 transforms.Resize((32, 32)),
                 transforms.ToTensor(),
                 transforms.Normalize((0.5,), (0.5, ))
             ])
 
+    transform_3d_crop_flip = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
+
+    transform_3d = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
+
+    if dataset == 'mnist':
+        if train:
+            # when train is True, we use transform_1d_crop_flip by default unless crop_flip is set to False
+            transform = transform_1d if crop_flip is False else transform_1d_crop_flip
+        else:
+            transform = transform_1d
+
         dataset = datasets.MNIST(data_dir, train=train, download=True, transform=transform)
 
     elif dataset == 'fashion':
         if train:
-            transform = transforms.Compose([
-                                            transforms.Resize((32, 32)),
-                                            transforms.RandomCrop(32, padding=4),
-                                            transforms.RandomHorizontalFlip(),
-                                            transforms.ToTensor(),
-                                            transforms.Normalize((0.5,), (0.5,))
-                                        ])
+            # when train is True, we use transform_1d_crop_flip by default unless crop_flip is set to False
+            transform = transform_1d if crop_flip is False else transform_1d_crop_flip
         else:
-            transform = transforms.Compose([
-                transforms.Resize((32, 32)),
-                transforms.ToTensor(),
-                transforms.Normalize((0.5,), (0.5,))
-            ])
+            transform = transform_1d
 
         dataset = datasets.FashionMNIST(data_dir, train=train, download=True, transform=transform)
 
     elif dataset == 'cifar10':
         if train:
-            transform = transforms.Compose([
-                                            transforms.RandomCrop(32, padding=4),
-                                            transforms.RandomHorizontalFlip(),
-                                            transforms.ToTensor(),
-                                            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-                                        ])
+            # when train is True, we use transform_1d_crop_flip by default unless crop_flip is set to False
+            transform = transform_3d if crop_flip is False else transform_3d_crop_flip
         else:
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-            ])
+            transform = transform_3d
 
         dataset = datasets.CIFAR10(data_dir, train=train, download=True, transform=transform)
     else:
@@ -68,7 +70,6 @@ def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None):
     if label_id is not None:
         # select samples with particular label
         idx = dataset.targets == label_id
-        #print('Select samples with label: {}, # samples: {}'.format(label_id, idx.float().sum().item()))
         dataset.targets = dataset.targets[idx]
         dataset.data = dataset.data[idx]
     return dataset
