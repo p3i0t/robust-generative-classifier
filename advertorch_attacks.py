@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-from torchvision.utils import  save_image
+from torchvision.utils import save_image
 from torch.optim import Adam
 
 from resnet import build_resnet_32x32
@@ -155,6 +155,28 @@ if __name__ == "__main__":
     print('Model name: {}'.format(hps.encoder_name))
     print('==>  # Model parameters: {}.'.format(cal_parameters(model)))
 
+    dataset = get_dataset(dataset=hps.problem, train=False)
+    hps.n_batch_test = 1
+    test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+
+    image_dir = 'images'
+    if not os.path.exists(image_dir):
+        os.mkdir(image_dir)
+
+    from cw_attack import cw
+    model.eval()
+
+    for batch_id, (x, y) in enumerate(test_loader):
+        adv_example, noise, adv_logits = cw(model, x, y, targeted=False, max_iter=2000, learning_rate=2e-3)
+        save_image(x, os.path.join(image_dir, 'original{}.png'.format(batch_id)))
+        save_image(adv_example, os.path.join(image_dir, 'adv{}.png'.format(batch_id)))
+        save_image(noise, os.path.join(image_dir, 'noise{}.png'.format(batch_id)))
+        print('logits: ', model(x).detach().numpy())
+        print('adv logits: ', adv_logits.detach().numpy())
+        if batch_id == 0:
+            break
+    exit(0)
+
     if hps.attack == 'pgdinf':
         adversary = LinfPGDAttack(
             model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=0.3,
@@ -173,18 +195,13 @@ if __name__ == "__main__":
             clip_max=1.0,
             targeted=False)
 
-    dataset = get_dataset(dataset=hps.problem, train=False)
-    test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+
 
     model.eval()
     test_clnloss = 0
     clncorrect = 0
     test_advloss = 0
     advcorrect = 0
-
-    image_dir = 'images'
-    if not os.path.exists(image_dir):
-        os.mkdir(image_dir)
 
     for batch_id, (clndata, target) in enumerate(test_loader):
         clndata, target = clndata.to(hps.device), target.to(hps.device)
