@@ -308,7 +308,7 @@ def ood_inference(model, hps):
         ll = model(x)
         for label_id in range(hps.n_classes):
             # samples whose ll lower than threshold will be successfully rejected.
-            acc = (ll[:, label_id] < threshold_list[label_id]).float().mean()
+            acc = (ll[:, label_id] < threshold_list[label_id]).float().mean().item()
             reject_acc_dict[str(label_id)].append(acc)
 
     print('==================== OOD Summary ====================')
