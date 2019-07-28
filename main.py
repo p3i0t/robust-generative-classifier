@@ -451,7 +451,7 @@ if __name__ == "__main__":
                         help='disables CUDA training')
 
     # Ablation
-    parser.add_argument("--seed", type=int, default=123, help="Random seed")
+    parser.add_argument("--seed", type=int, default=1234, help="Random seed")
     hps = parser.parse_args()  # So error if typo
 
     use_cuda = not hps.no_cuda and torch.cuda.is_available()
