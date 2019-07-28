@@ -346,7 +346,13 @@ def noise_ood_inference(model, hps):
 
             correct_idx = ll.argmax(dim=1) == y
 
-            ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
+            margin = 10
+            top2_ll = torch.topk(k=2, dim=1)[0]
+            margin_idx = (top2_ll[:, 0] - top2_ll[:, 1]) > margin
+
+            idx = margin_idx & correct_idx # two conditions should be satisfied.
+
+            ll_, y_ = ll[idx], y[idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
 
         print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), min(in_ll_list)))
