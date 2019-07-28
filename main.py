@@ -116,19 +116,20 @@ def inference(model, hps):
 
     print('Train accuracy: {:.4f}'.format(np.mean(acc_list)))
 
-    dataset = get_dataset(dataset=hps.problem, train=False)
-    test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+    for label_id in range(hps.n_classes):
+        dataset = get_dataset(dataset=hps.problem, train=False, label_id=label_id)
+        test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
-    acc_list = []
-    for batch_id, (x, y) in enumerate(test_loader):
-        x = x.to(hps.device)
-        y = y.to(hps.device)
+        acc_list = []
+        for batch_id, (x, y) in enumerate(test_loader):
+            x = x.to(hps.device)
+            y = y.to(hps.device)
 
-        preds = model(x).argmax(dim=1)
-        acc = (preds == y).float().mean()
-        acc_list.append(acc.item())
+            preds = model(x).argmax(dim=1)
+            acc = (preds == y).float().mean()
+            acc_list.append(acc.item())
 
-    print('Test accuracy: {:.4f}'.format(np.mean(acc_list)))
+        print('Test accuracy: {:.4f}'.format(np.mean(acc_list)))
 
 
 # FGSM attack code
@@ -346,7 +347,7 @@ def noise_ood_inference(model, hps):
 
             correct_idx = ll.argmax(dim=1) == y
 
-            margin = 10
+            margin = 200
             top2_ll = torch.topk(ll, k=2, dim=1)[0]
             margin_idx = (top2_ll[:, 0] - top2_ll[:, 1]) > margin
 
