@@ -347,7 +347,7 @@ def noise_ood_inference(model, hps):
             correct_idx = ll.argmax(dim=1) == y
 
             margin = 10
-            top2_ll = torch.topk(k=2, dim=1)[0]
+            top2_ll = torch.topk(ll, k=2, dim=1)[0]
             margin_idx = (top2_ll[:, 0] - top2_ll[:, 1]) > margin
 
             idx = margin_idx & correct_idx # two conditions should be satisfied.
