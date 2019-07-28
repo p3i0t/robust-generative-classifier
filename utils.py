@@ -39,13 +39,13 @@ def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None, cro
     ])
 
     if dataset == 'mnist':
-        if train:
+        #if train:
             # when train is True, we use transform_1d_crop_flip by default unless crop_flip is set to False
-            transform = transform_1d if crop_flip is False else transform_1d_crop_flip
-        else:
-            transform = transform_1d
+        #    transform = transform_1d if crop_flip is False else transform_1d_crop_flip
+        #else:
+        #    transform = transform_1d
 
-        dataset = datasets.MNIST(data_dir, train=train, download=True, transform=transform)
+        dataset = datasets.MNIST(data_dir, train=train, download=True, transform=transform_1d)
 
     elif dataset == 'fashion':
         if train:
