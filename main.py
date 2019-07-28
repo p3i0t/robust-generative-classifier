@@ -348,7 +348,6 @@ def noise_ood_inference(model, hps):
 
             ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
-            #print(ll_[:, label_id].detach().cpu().numpy())
 
         print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), min(in_ll_list)))
         threshold_list.append(min(in_ll_list))  # class mean as threshold
@@ -371,6 +370,23 @@ def noise_ood_inference(model, hps):
 
     print('==================== Noise OOD Summary ====================')
     print('In-distribution dataset: {}, Out-distribution dataset: Noise ~ Uniform[-1, 1]'.format(hps.problem))
+    for label_id in range(hps.n_classes):
+        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_dict[str(label_id)])))
+    print('===========================================================')
+
+    reject_acc_dict = dict([(str(label_id), []) for label_id in range(hps.n_classes)])
+    # Noise as out-distribution samples
+    for batch_id in range(n_batches):
+        noises = torch.randn((batch_size, shape[1], shape[2], shape[3])).clamp_(min=-1., max=1.).to(hps.device)  # sample noise
+        ll = model(noises)
+
+        for label_id in range(hps.n_classes):
+            # samples whose ll lower than threshold will be successfully rejected.
+            acc = (ll[:, label_id] < threshold_list[label_id]).float().mean().item()
+            reject_acc_dict[str(label_id)].append(acc)
+
+    print('==================== Noise OOD Summary ====================')
+    print('In-distribution dataset: {}, Out-distribution dataset: Noise ~ Normal(0, 1) clamped to [-1, 1]'.format(hps.problem))
     for label_id in range(hps.n_classes):
         print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_dict[str(label_id)])))
     print('===========================================================')
