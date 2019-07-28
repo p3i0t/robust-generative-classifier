@@ -1,5 +1,7 @@
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
+import torch
+import numpy as np
 
 
 def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None, crop_flip=True):
@@ -69,9 +71,18 @@ def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None, cro
 
     if label_id is not None:
         # select samples with particular label
-        idx = dataset.targets == label_id
-        dataset.targets = dataset.targets[idx]
-        dataset.data = dataset.data[idx]
+        if isinstance(dataset.targets, list):
+            # for cifar10
+            targets = np.array(dataset.targets)
+            idx = targets == label_id
+            dataset.targets = list(targets[idx])
+            dataset.data = dataset.data[idx]
+        else:
+            targets = dataset.targets
+            data = dataset.data
+            idx = targets == label_id
+            dataset.targets = targets[idx]
+            dataset.data = data[idx]
     return dataset
 
 
@@ -88,8 +99,11 @@ def cal_parameters(model):
 
 
 if __name__ == '__main__':
-    dataset = get_dataset(label_id=1)
-    train_loader = DataLoader(dataset=dataset, batch_size=10, shuffle=True)
+    dataset = get_dataset(dataset='cifar10', train=True, label_id=1, crop_flip=False)
+    train_loader = DataLoader(dataset=dataset, batch_size=10, shuffle=False)
+    # dataset = get_dataset(label_id=1)
+    # train_loader = DataLoader(dataset=dataset, batch_size=10, shuffle=True)
     for batch_id, (x, y) in enumerate(train_loader):
+        print(x.size())
         print(y)
         break
