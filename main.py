@@ -313,28 +313,65 @@ def ood_inference(model, hps):
             reject_acc_dict[str(label_id)].append(acc)
 
     print('==================== OOD Summary ====================')
-    print('In-distribution dataset {}, Out-distribution dataset {}'.format(hps.problem, out_problem))
+    print('In-distribution dataset: {}, Out-distribution dataset: {}'.format(hps.problem, out_problem))
     for label_id in range(hps.n_classes):
         print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_dict[str(label_id)])))
     print('=====================================================')
     # ll_checkpoint = {'fashion': in_ll_list, 'mnist': out_ll_list}
     # torch.save(ll_checkpoint, 'ood_sdim_{}_{}_d{}.pth'.format(model.encoder_name, hps.problem, hps.rep_size))
 
-    shape = x.size()
-    # Noise as out-distribution samples
-    noises = torch.randn((1000, shape[1], shape[2], shape[3])).uniform_(-1., 1.).to(hps.device)
-    ll = model(noises)
 
-    reject_acc_list = []
+def noise_ood_inference(model, hps):
+    model.eval()
+    torch.manual_seed(hps.seed)
+    np.random.seed(hps.seed)
+
+    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}.pth'.format(model.encoder_name,
+                                                                            hps.problem,
+                                                                            hps.rep_size))
+    model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
+
+    threshold_list = []
     for label_id in range(hps.n_classes):
-        # samples whose ll lower than threshold will be successfully rejected.
-        acc = (ll[:, label_id] < threshold_list[label_id]).float().mean().item()
-        reject_acc_list.append(acc)
+        # No data augmentation(crop_flip=False) when getting in-distribution thresholds
+        dataset = get_dataset(dataset=hps.problem, train=True, label_id=label_id, crop_flip=False)
+        in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+
+        print('Inference on {}, label_id {}'.format(hps.problem, label_id))
+        in_ll_list = []
+        for batch_id, (x, y) in enumerate(in_test_loader):
+            x = x.to(hps.device)
+            y = y.to(hps.device)
+            ll = model(x)
+
+            correct_idx = ll.argmax(dim=1) == y
+
+            ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
+            in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
+
+        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), min(in_ll_list)))
+        threshold_list.append(min(in_ll_list))  # class mean as threshold
+
+    shape = x.size()
+
+    batch_size = 200
+    n_batches = 50
+
+    reject_acc_dict = dict([(str(label_id), []) for label_id in range(hps.n_classes)])
+    # Noise as out-distribution samples
+    for batch_id in range(n_batches):
+        noises = torch.randn((batch_size, shape[1], shape[2], shape[3])).uniform_(-1., 1.).to(hps.device) # sample noise
+        ll = model(noises)
+
+        for label_id in range(hps.n_classes):
+            # samples whose ll lower than threshold will be successfully rejected.
+            acc = (ll[:, label_id] < threshold_list[label_id]).float().mean().item()
+            reject_acc_dict[str(label_id)].append(acc)
 
     print('==================== Noise OOD Summary ====================')
-    print('In-distribution dataset {}, Out-distribution dataset {}'.format(hps.problem, out_problem))
+    print('In-distribution dataset: {}, Out-distribution dataset: Noise ~ Uniform[-1, 1]'.format(hps.problem))
     for label_id in range(hps.n_classes):
-        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_list[label_id])))
+        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_dict[str(label_id)])))
     print('===========================================================')
 
 
@@ -349,7 +386,9 @@ if __name__ == "__main__":
     parser.add_argument("--inference", action="store_true",
                         help="Used in inference mode")
     parser.add_argument("--ood_inference", action="store_true",
-                        help="Used in inference mode")
+                        help="Used in ood inference mode")
+    parser.add_argument("--noise_ood_inference", action="store_true",
+                        help="Used in noise ood inference mode")
     parser.add_argument("--fgsm_attack", action="store_true",
                         help="Perform FGSM attack")
     parser.add_argument("--noise_attack", action="store_true",
@@ -427,5 +466,7 @@ if __name__ == "__main__":
         inference(model, hps)
     elif hps.ood_inference:
         ood_inference(model, hps)
+    elif hps.noise_ood_inference:
+        noise_ood_inference(model, hps)
     else:
         train(model, optimizer, hps)
