@@ -242,7 +242,6 @@ def noise_attack(model, hps):
                                                                             hps.rep_size))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
-    hps.problem = 'mnist'
     dataset = get_dataset(dataset=hps.problem, train=False)
     test_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=True)
 

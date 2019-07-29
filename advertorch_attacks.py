@@ -15,9 +15,125 @@ from torch.optim import Adam
 from resnet import build_resnet_32x32
 from sdim import SDIM
 
-from advertorch.attacks import LinfPGDAttack, L2PGDAttack, CarliniWagnerL2Attack
+from advertorch.attacks import LinfPGDAttack, L2PGDAttack, CarliniWagnerL2Attack, GradientSignAttack
 
 from utils import get_dataset, cal_parameters
+
+
+def attack_run(model, adversary, hps):
+    dataset = get_dataset(dataset=hps.problem, train=False)
+    # hps.n_batch_test = 1
+    test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+
+    model.eval()
+    test_clnloss = 0
+    clncorrect = 0
+    test_advloss = 0
+    advcorrect = 0
+
+    for batch_id, (clndata, target) in enumerate(test_loader):
+        clndata, target = clndata.to(hps.device), target.to(hps.device)
+        path = os.path.join(hps.log_dir, 'original_{}.png'.format(batch_id))
+        save_image(clndata, path, normalize=True)
+
+        with torch.no_grad():
+            output = model(clndata)
+
+        test_clnloss += F.cross_entropy(
+            output, target, reduction='sum').item()
+        pred = output.max(1, keepdim=True)[1]
+        clncorrect += pred.eq(target.view_as(pred)).sum().item()
+
+        advdata = adversary.perturb(clndata, target)
+        path = os.path.join(hps.log_dir, '{}perturbed_{}.png'.format(prefix, batch_id))
+        save_image(advdata, path, normalize=True)
+
+        with torch.no_grad():
+            output = model(advdata)
+        test_advloss += F.cross_entropy(
+            output, target, reduction='sum').item()
+        pred = output.max(1, keepdim=True)[1]
+        advcorrect += pred.eq(target.view_as(pred)).sum().item()
+
+    test_clnloss /= len(test_loader.dataset)
+    print('\nTest set: avg cln loss: {:.4f},'
+          ' cln acc: {}/{} ({:.0f}%)\n'.format(
+        test_clnloss, clncorrect, len(test_loader.dataset),
+        100. * clncorrect / len(test_loader.dataset)))
+
+    test_advloss /= len(test_loader.dataset)
+    print('Test set: avg adv loss: {:.4f},'
+          ' adv acc: {}/{} ({:.0f}%)\n'.format(
+        test_advloss, advcorrect, len(test_loader.dataset),
+        100. * advcorrect / len(test_loader.dataset)))
+
+
+def fgsm_attack(model, hps):
+    eps_list = [0., 0.1, 0.2, 0.3]
+
+    print('============== FGSM Summary ===============')
+
+    for eps in eps_list:
+        adversary = GradientSignAttack(
+            model,
+            loss_fn=nn.CrossEntropyLoss(reduction="sum"),
+            eps=eps,
+            clip_min=-1.,
+            clip_max=1.,
+            targeted=hps.targeted
+        )
+        print('epsilon = {:.4f}'.format(adversary.eps))
+        attack_run(model, adversary, hps)
+
+    print('============== FGSM Summary ===============')
+
+
+def linfPGD_attack(model, hps):
+    eps_list = [0., 0.1, 0.2, 0.3]
+
+    print('============== LinfPGD Summary ===============')
+    for eps in eps_list:
+        adversary = LinfPGDAttack(
+            model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=eps,
+            nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=-1.0,
+            clip_max=1.0, targeted=hps.targeted)
+        print('epsilon = {:.4f}'.format(adversary.eps))
+        attack_run(model, adversary, hps)
+
+    print('============== LinfPGD Summary ===============')
+
+
+def l2PGD_attack(model, hps):
+    eps_list = [0., 0.1, 0.2, 0.3]
+
+    print('============== L2PGD Summary ===============')
+    for eps in eps_list:
+        adversary = L2PGDAttack(
+            model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=eps,
+            nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=-1.0,
+            clip_max=1.0, targeted=hps.targeted)
+        print('epsilon = {:.4f}'.format(adversary.eps))
+        attack_run(model, adversary, hps)
+
+    print('============== L2PGD Summary ===============')
+
+
+
+def cw_l2_attack(model, hps):
+    confidence_list = [0., 10, 20, 30, 30]
+
+    print('============== CW_l2 Summary ===============')
+    for confidence in confidence_list:
+        adversary = CarliniWagnerL2Attack(model,
+                                          num_classes=10,
+                                          confidence=confidence,
+                                          clip_min=-1.,
+                                          clip_max=1.
+                                          )
+        print('confiden ce = {:.4f}'.format(adversary.confidence))
+        attack_run(model, adversary, hps)
+
+    print('============== CW_l2 Summary ===============')
 
 
 if __name__ == "__main__":
@@ -30,14 +146,8 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action='store_true', help="Verbose mode")
     parser.add_argument("--inference", action="store_true",
                         help="Used in inference mode")
-    parser.add_argument("--fgsm_attack", action="store_true",
-                        help="Perform FGSM attack")
-    parser.add_argument("--noise_attack", action="store_true",
-                        help="Perform noise attack")
     parser.add_argument("--log_dir", type=str,
-                        default='./logs', help="Location to save logs")
-    parser.add_argument("--attack", type=str, default='pgdinf',
-                        help="Location of data")
+                        default='./attack_logs', help="Location to save logs")
 
     # Dataset hyperparams:
     parser.add_argument("--problem", type=str, default='cifar10',
@@ -75,6 +185,12 @@ if __name__ == "__main__":
                         help="encoder name: resnet#")
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
+
+    # Attack parameters
+    parser.add_argument("--targeted", action="store_true",
+                        help="whether perform targeted attack")
+    parser.add_argument("--attack", type=str, default='pgdinf',
+                        help="Location of data")
 
     # Ablation
     parser.add_argument("--seed", type=int, default=123, help="Random seed")
@@ -116,87 +232,31 @@ if __name__ == "__main__":
     print('Model name: {}'.format(hps.encoder_name))
     print('==>  # Model parameters: {}.'.format(cal_parameters(model)))
 
-    dataset = get_dataset(dataset=hps.problem, train=False)
-    hps.n_batch_test = 1
-    test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+    if not os.path.exists(hps.log_dir):
+        os.mkdir(hps.log_dir)
 
-    image_dir = 'images'
-    if not os.path.exists(image_dir):
-        os.mkdir(image_dir)
-
-    from cw_attack import cw
-    model.eval()
-
-    for batch_id, (x, y) in enumerate(test_loader):
-        adv_example, noise, adv_logits = cw(model, x, y, targeted=False, max_iter=2000, learning_rate=2e-3)
-        save_image(x, os.path.join(image_dir, 'original{}.png'.format(batch_id)))
-        save_image(adv_example, os.path.join(image_dir, 'adv{}.png'.format(batch_id)))
-        save_image(noise, os.path.join(image_dir, 'noise{}.png'.format(batch_id)))
-        print('logits: ', model(x).detach().numpy())
-        print('adv logits: ', adv_logits.detach().numpy())
-        if batch_id == 0:
-            break
-    exit(0)
+    # from cw_attack import cw
+    # model.eval()
+    #
+    # for batch_id, (x, y) in enumerate(test_loader):
+    #     x = x.to(hps.device)
+    #     y = y.to(hps.device)
+    #     adv_example, noise, adv_logits = cw(model, x, y, targeted=False, max_iter=2000, learning_rate=2e-3)
+    #     save_image(x, os.path.join(image_dir, 'original{}.png'.format(batch_id)))
+    #     save_image(adv_example, os.path.join(image_dir, 'adv{}.png'.format(batch_id)))
+    #     save_image(noise, os.path.join(image_dir, 'noise{}.png'.format(batch_id)))
+    #     print('logits: ', model(x).detach().numpy())
+    #     print('adv logits: ', adv_logits.detach().numpy())
+    #     if batch_id == 0:
+    #         break
+    # exit(0)
 
     if hps.attack == 'pgdinf':
-        adversary = LinfPGDAttack(
-            model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=0.3,
-            nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=0.0,
-            clip_max=1.0, targeted=False)
+        linfPGD_attack(model, hps)
     elif hps.attack == 'pgd2':
-        adversary = L2PGDAttack(
-            model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=9.3,
-            nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=0.0,
-            clip_max=10.0, targeted=False)
+        l2PGD_attack(model, hps)
     elif hps.attack == 'cw':
-        adversary = CarliniWagnerL2Attack(
-            model, loss_fn=nn.CrossEntropyLoss(reduction="sum"),
-            num_classes=10,
-            clip_min=0.0,
-            clip_max=1.0,
-            targeted=False)
+        cw_l2_attack(model, hps)
+    elif hps.attack == 'fgsm':
+        fgsm_attack(model, hps)
 
-
-
-    model.eval()
-    test_clnloss = 0
-    clncorrect = 0
-    test_advloss = 0
-    advcorrect = 0
-
-    for batch_id, (clndata, target) in enumerate(test_loader):
-        clndata, target = clndata.to(hps.device), target.to(hps.device)
-        path = os.path.join(image_dir, 'original_{}.png'.format(batch_id))
-        save_image(clndata, path, normalize=True)
-
-        with torch.no_grad():
-            output = model(clndata)
-        print('output ', output)
-        test_clnloss += F.cross_entropy(
-            output, target, reduction='sum').item()
-        pred = output.max(1, keepdim=True)[1]
-        clncorrect += pred.eq(target.view_as(pred)).sum().item()
-
-        advdata = adversary.perturb(clndata, target)
-        path = os.path.join(image_dir, '{}perturbed_{}.png'.format(prefix, batch_id))
-        save_image(advdata, path, normalize=True)
-
-        with torch.no_grad():
-            output = model(advdata)
-        print('perturbed ', output)
-        test_advloss += F.cross_entropy(
-            output, target, reduction='sum').item()
-        pred = output.max(1, keepdim=True)[1]
-        advcorrect += pred.eq(target.view_as(pred)).sum().item()
-        exit(0)
-    test_clnloss /= len(test_loader.dataset)
-    print('\nTest set: avg cln loss: {:.4f},'
-          ' cln acc: {}/{} ({:.0f}%)\n'.format(
-        test_clnloss, clncorrect, len(test_loader.dataset),
-        100. * clncorrect / len(test_loader.dataset)))
-
-    test_advloss /= len(test_loader.dataset)
-    print('Test set: avg adv loss: {:.4f},'
-          ' adv acc: {}/{} ({:.0f}%)\n'.format(
-        test_advloss, advcorrect, len(test_loader.dataset),
-        100. * advcorrect / len(test_loader.dataset)))
