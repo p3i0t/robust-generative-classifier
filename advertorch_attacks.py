@@ -119,7 +119,7 @@ def attack_run_rejection_policy(model, adversary, hps):
     if not os.path.exists(attack_path):
         os.mkdir(attack_path)
 
-    thresholds = torch.tensor(threshold_list)
+    thresholds = torch.tensor(threshold_list).to(hps.device)
 
     for batch_id, (clndata, target) in enumerate(test_loader):
         # Note that images are scaled to [-1.0, 1.0]
