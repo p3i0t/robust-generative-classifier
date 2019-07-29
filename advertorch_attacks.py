@@ -34,11 +34,12 @@ def attack_run(model, adversary, hps):
     for batch_id, (clndata, target) in enumerate(test_loader):
         clndata, target = clndata.to(hps.device), target.to(hps.device)
         path = os.path.join(hps.attack_dir, 'original_{}.png'.format(batch_id))
-        #save_image(clndata, path, normalize=True)
+        save_image(clndata, path, normalize=True)
 
         with torch.no_grad():
             output = model(clndata)
 
+        print('original logits ', output.detach().cpu().numpy())
         test_clnloss += F.cross_entropy(
             output, target, reduction='sum').item()
         pred = output.max(1, keepdim=True)[1]
@@ -46,14 +47,19 @@ def attack_run(model, adversary, hps):
 
         advdata = adversary.perturb(clndata, target)
         path = os.path.join(hps.attack_dir, '{}perturbed_{}.png'.format(prefix, batch_id))
-        #save_image(advdata, path, normalize=True)
+        save_image(advdata, path, normalize=True)
 
         with torch.no_grad():
             output = model(advdata)
+        print('adv logits ', output.detach().cpu().numpy())
+
         test_advloss += F.cross_entropy(
             output, target, reduction='sum').item()
         pred = output.max(1, keepdim=True)[1]
         advcorrect += pred.eq(target.view_as(pred)).sum().item()
+
+        if batch_id == 2:
+            exit(0)
 
     test_clnloss /= len(test_loader.dataset)
     print('\nTest set: avg cln loss: {:.4f},'
@@ -126,9 +132,9 @@ def cw_l2_attack(model, hps):
         adversary = CarliniWagnerL2Attack(model,
                                           num_classes=10,
                                           confidence=confidence,
-                                          clip_min=-1.,
+                                          clip_min=0.,
                                           clip_max=1.,
-                                          max_iterations=1000
+                                          max_iterations=500
                                           )
         print('confidence = {}'.format(adversary.confidence))
         hps.n_batch_test = 1
