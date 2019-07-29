@@ -118,7 +118,6 @@ def l2PGD_attack(model, hps):
     print('============== L2PGD Summary ===============')
 
 
-
 def cw_l2_attack(model, hps):
     confidence_list = [0., 10, 20, 30, 30]
 
@@ -128,9 +127,10 @@ def cw_l2_attack(model, hps):
                                           num_classes=10,
                                           confidence=confidence,
                                           clip_min=-1.,
-                                          clip_max=1.
+                                          clip_max=1.,
+                                          max_iterations=1000
                                           )
-        print('confiden ce = {:.4f}'.format(adversary.confidence))
+        print('confidence = {}'.format(adversary.confidence))
         hps.n_batch_test = 1
         attack_run(model, adversary, hps)
 
