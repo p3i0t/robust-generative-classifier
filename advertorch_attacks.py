@@ -81,6 +81,95 @@ def attack_run(model, adversary, hps):
     return cln_acc, adv_acc
 
 
+def attack_run_rejection_policy(model, adversary, hps):
+    # Get thresholds
+    threshold_list = []
+    for label_id in range(hps.n_classes):
+        # No data augmentation(crop_flip=False) when getting in-distribution thresholds
+        dataset = get_dataset(dataset=hps.problem, train=True, label_id=label_id, crop_flip=False)
+        in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+
+        print('Inference on {}, label_id {}'.format(hps.problem, label_id))
+        in_ll_list = []
+        for batch_id, (x, y) in enumerate(in_test_loader):
+            x = x.to(hps.device)
+            y = y.to(hps.device)
+            ll = model(x)
+
+            correct_idx = ll.argmax(dim=1) == y
+
+            ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
+            in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
+
+        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), min(in_ll_list)))
+        threshold_list.append(min(in_ll_list))  # class mean as threshold
+
+    # Evaluation
+    dataset = get_dataset(dataset=hps.problem, train=False)
+    # hps.n_batch_test = 1
+    test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+
+    model.eval()
+    clncorrect = 0
+    cln_reject = 0
+    advcorrect = 0
+    adv_reject = 0
+
+    attack_path = os.path.join(hps.attack_dir, hps.attack)
+    if not os.path.exists(attack_path):
+        os.mkdir(attack_path)
+
+    thresholds = torch.tensor(threshold_list)
+
+    for batch_id, (clndata, target) in enumerate(test_loader):
+        # Note that images are scaled to [-1.0, 1.0]
+        clndata, target = clndata.to(hps.device), target.to(hps.device)
+        path = os.path.join(attack_path, 'original_{}.png'.format(batch_id))
+        save_image(clndata, path, normalize=True)
+
+        with torch.no_grad():
+            output = model(clndata)
+
+        # print('original logits ', output.detach().cpu().numpy())
+        # test_clnloss += F.cross_entropy(
+        #     output, target, reduction='sum').item()
+        values, pred = output.max(dim=1)
+        confidence_idx = values >= thresholds[pred]
+        reject_idx = values < thresholds[pred]
+
+        clncorrect += pred[confidence_idx].eq(target[confidence_idx]).sum().item()
+        cln_reject += reject_idx.float().sum().item()
+
+        advdata = adversary.perturb(clndata, target)
+        path = os.path.join(attack_path, '{}perturbed_{}.png'.format(prefix, batch_id))
+        save_image(advdata, path, normalize=True)
+
+        with torch.no_grad():
+            output = model(advdata)
+        # print('adv logits ', output.detach().cpu().numpy())
+
+        # test_advloss += F.cross_entropy(
+        #     output, target, reduction='sum').item()
+        values, pred = output.max(dim=1)
+        confidence_idx = values >= thresholds[pred]
+        reject_idx = values < thresholds[pred]
+
+        # pred = output.max(1, keepdim=True)[1]
+        advcorrect += pred[confidence_idx].eq(target[confidence_idx]).sum().item()
+        adv_reject += reject_idx.float().sum().item()
+
+        # if batch_id == 2:
+        #     exit(0)
+
+    n = len(test_loader.dataset)
+    print('Test set: cln acc: {:.4f}, reject rate: {:.4f}'.format(clncorrect / n, cln_reject / n))
+    print('Test set: adv acc: {:.4f}, reject success rate: {:.4f}'.format(advcorrect / n, adv_reject / n))
+
+    cln_acc = clncorrect / len(test_loader.dataset)
+    adv_acc = advcorrect / len(test_loader.dataset)
+    return cln_acc, adv_acc
+
+
 def fgsm_attack(model, hps):
     eps_list = [0., 0.1, 0.3, 0.5, 0.7]
 
@@ -111,7 +200,7 @@ def linfPGD_attack(model, hps):
             nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=-1.0,
             clip_max=1.0, targeted=hps.targeted)
         print('epsilon = {:.4f}'.format(adversary.eps))
-        attack_run(model, adversary, hps)
+        attack_run_rejection_policy(model, adversary, hps)
 
     print('============== LinfPGD Summary ===============')
 
