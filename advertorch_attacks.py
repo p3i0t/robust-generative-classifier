@@ -33,8 +33,8 @@ def attack_run(model, adversary, hps):
 
     for batch_id, (clndata, target) in enumerate(test_loader):
         clndata, target = clndata.to(hps.device), target.to(hps.device)
-        path = os.path.join(hps.log_dir, 'original_{}.png'.format(batch_id))
-        save_image(clndata, path, normalize=True)
+        path = os.path.join(hps.attack_dir, 'original_{}.png'.format(batch_id))
+        #save_image(clndata, path, normalize=True)
 
         with torch.no_grad():
             output = model(clndata)
@@ -45,8 +45,8 @@ def attack_run(model, adversary, hps):
         clncorrect += pred.eq(target.view_as(pred)).sum().item()
 
         advdata = adversary.perturb(clndata, target)
-        path = os.path.join(hps.log_dir, '{}perturbed_{}.png'.format(prefix, batch_id))
-        save_image(advdata, path, normalize=True)
+        path = os.path.join(hps.attack_dir, '{}perturbed_{}.png'.format(prefix, batch_id))
+        #save_image(advdata, path, normalize=True)
 
         with torch.no_grad():
             output = model(advdata)
@@ -69,7 +69,7 @@ def attack_run(model, adversary, hps):
 
 
 def fgsm_attack(model, hps):
-    eps_list = [0., 0.1, 0.2, 0.3]
+    eps_list = [0., 0.1, 0.3, 0.5, 0.7]
 
     print('============== FGSM Summary ===============')
 
@@ -89,7 +89,7 @@ def fgsm_attack(model, hps):
 
 
 def linfPGD_attack(model, hps):
-    eps_list = [0., 0.1, 0.2, 0.3]
+    eps_list = [0., 0.1, 0.3, 0.5, 0.7]
 
     print('============== LinfPGD Summary ===============')
     for eps in eps_list:
@@ -104,7 +104,7 @@ def linfPGD_attack(model, hps):
 
 
 def l2PGD_attack(model, hps):
-    eps_list = [0., 0.1, 0.2, 0.3]
+    eps_list = [0., 0.1, 0.3, 0.5, 0.7]
 
     print('============== L2PGD Summary ===============')
     for eps in eps_list:
@@ -131,6 +131,7 @@ def cw_l2_attack(model, hps):
                                           clip_max=1.
                                           )
         print('confiden ce = {:.4f}'.format(adversary.confidence))
+        hps.n_batch_test = 1
         attack_run(model, adversary, hps)
 
     print('============== CW_l2 Summary ===============')
@@ -147,6 +148,8 @@ if __name__ == "__main__":
     parser.add_argument("--inference", action="store_true",
                         help="Used in inference mode")
     parser.add_argument("--log_dir", type=str,
+                        default='./logs', help="Location to save logs")
+    parser.add_argument("--attack_dir", type=str,
                         default='./attack_logs', help="Location to save logs")
 
     # Dataset hyperparams:
@@ -235,6 +238,8 @@ if __name__ == "__main__":
     if not os.path.exists(hps.log_dir):
         os.mkdir(hps.log_dir)
 
+    if not os.path.exists(hps.attack_dir):
+        os.mkdir(hps.attack_dir)
     # from cw_attack import cw
     # model.eval()
     #
