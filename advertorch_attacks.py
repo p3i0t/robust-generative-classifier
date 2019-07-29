@@ -31,47 +31,54 @@ def attack_run(model, adversary, hps):
     test_advloss = 0
     advcorrect = 0
 
+    attack_path = os.path.join(hps.attack_dir, hps.attack)
+    if not os.path.exists(attack_path):
+        os.mkdir(attack_path)
+
     for batch_id, (clndata, target) in enumerate(test_loader):
+        # Note that images are scaled to [-1.0, 1.0]
         clndata, target = clndata.to(hps.device), target.to(hps.device)
-        path = os.path.join(hps.attack_dir, 'original_{}.png'.format(batch_id))
+        path = os.path.join(attack_path, 'original_{}.png'.format(batch_id))
         save_image(clndata, path, normalize=True)
 
         with torch.no_grad():
             output = model(clndata)
 
-        print('original logits ', output.detach().cpu().numpy())
+        # print('original logits ', output.detach().cpu().numpy())
         test_clnloss += F.cross_entropy(
             output, target, reduction='sum').item()
         pred = output.max(1, keepdim=True)[1]
         clncorrect += pred.eq(target.view_as(pred)).sum().item()
 
         advdata = adversary.perturb(clndata, target)
-        path = os.path.join(hps.attack_dir, '{}perturbed_{}.png'.format(prefix, batch_id))
+        path = os.path.join(attack_path, '{}perturbed_{}.png'.format(prefix, batch_id))
         save_image(advdata, path, normalize=True)
 
         with torch.no_grad():
             output = model(advdata)
-        print('adv logits ', output.detach().cpu().numpy())
+        # print('adv logits ', output.detach().cpu().numpy())
 
         test_advloss += F.cross_entropy(
             output, target, reduction='sum').item()
         pred = output.max(1, keepdim=True)[1]
         advcorrect += pred.eq(target.view_as(pred)).sum().item()
 
-        if batch_id == 2:
-            exit(0)
+        # if batch_id == 2:
+        #     exit(0)
 
     test_clnloss /= len(test_loader.dataset)
-    print('\nTest set: avg cln loss: {:.4f},'
-          ' cln acc: {}/{} ({:.0f}%)\n'.format(
-        test_clnloss, clncorrect, len(test_loader.dataset),
-        100. * clncorrect / len(test_loader.dataset)))
+    print('Test set: avg cln loss: {:.4f},'
+          ' cln acc: {}/{}'.format(
+        test_clnloss, clncorrect, len(test_loader.dataset)))
 
     test_advloss /= len(test_loader.dataset)
     print('Test set: avg adv loss: {:.4f},'
-          ' adv acc: {}/{} ({:.0f}%)\n'.format(
-        test_advloss, advcorrect, len(test_loader.dataset),
-        100. * advcorrect / len(test_loader.dataset)))
+          ' adv acc: {}/{}'.format(
+        test_advloss, advcorrect, len(test_loader.dataset)))
+
+    cln_acc = clncorrect / len(test_loader.dataset)
+    adv_acc = advcorrect / len(test_loader.dataset)
+    return cln_acc, adv_acc
 
 
 def fgsm_attack(model, hps):
