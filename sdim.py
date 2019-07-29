@@ -57,7 +57,7 @@ class ClassConditionalMAF(nn.Module):
     def forward(self, x):
         ll_list = []
         for i in range(self.n_classes):
-            ll_list.append(self.maf_list[i](x))
+            ll_list.append(self.maf_list[i](x).unsqueeze(dim=1))
 
         ll = torch.cat(ll_list, dim=1)
         return ll
