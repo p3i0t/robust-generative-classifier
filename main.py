@@ -294,8 +294,9 @@ def ood_inference(model, hps):
             ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
 
-        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), min(in_ll_list)))
-        threshold_list.append(min(in_ll_list))  # class mean as threshold
+        thresh = sorted(in_ll_list)[50]
+        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), thresh))
+        threshold_list.append(thresh)  # class mean as threshold
 
     print('Inference on {}'.format(out_problem))
     # eval on whole test set
@@ -346,7 +347,7 @@ def noise_ood_inference(model, hps):
 
             correct_idx = ll.argmax(dim=1) == y
 
-            margin = 200
+            margin = 500
             top2_ll = torch.topk(ll, k=2, dim=1)[0]
             margin_idx = (top2_ll[:, 0] - top2_ll[:, 1]) > margin
 
@@ -355,13 +356,15 @@ def noise_ood_inference(model, hps):
             ll_, y_ = ll[idx], y[idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
 
-        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), min(in_ll_list)))
-        threshold_list.append(min(in_ll_list))  # class mean as threshold
+        thresh = sorted(in_ll_list)[200]
+        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), thresh))
+        #print('head 10: ', sorted(in_ll_list)[:10])
+        threshold_list.append(thresh)  # class mean as threshold
 
     shape = x.size()
 
-    batch_size = 200
-    n_batches = 50
+    batch_size = 100
+    n_batches = 100
 
     reject_acc_dict = dict([(str(label_id), []) for label_id in range(hps.n_classes)])
     # Noise as out-distribution samples

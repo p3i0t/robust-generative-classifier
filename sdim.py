@@ -52,7 +52,7 @@ class ClassConditionalMAF(nn.Module):
         self.embed_size = embed_size
         self.maf_list = nn.ModuleList([])
         for i in range(self.n_classes):
-            self.maf_list.append(MaskedAutoregressiveFlow(self.embed_size, hidden_sizes=(128,), n_mades=1))
+            self.maf_list.append(MaskedAutoregressiveFlow(self.embed_size, hidden_sizes=(128,), n_mades=2))
 
     def forward(self, x):
         ll_list = []
@@ -101,16 +101,16 @@ class SDIM(torch.nn.Module):
         self.encoder = resnet.build_resnet_32x32(n, fc_size=rep_size, image_channel=image_channel)  # output a representation
         print('==> # encoder parameters {}'.format(cal_parameters(self.encoder)))
 
-        self.task_idx = (3, -1)
+        self.task_idx = (2, -1)
 
-        local_size = 128
+        local_size = 64
 
         # 1x1 conv performed on only channel dimension
         self.local_MInet = MI1x1ConvNet(local_size, self.mi_units)
         self.global_MInet = MI1x1ConvNet(self.rep_size, self.mi_units)
 
         self.class_conditional = ClassConditionalGaussianMixture(self.n_classes, self.rep_size)
-        self.class_conditional = ClassConditionalMAF(self.n_classes, self.rep_size)
+        #self.class_conditional = ClassConditionalMAF(self.n_classes, self.rep_size)
 
     def _T(self, out_list):
         L, G = [out_list[i] for i in self.task_idx]

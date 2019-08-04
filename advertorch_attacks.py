@@ -44,10 +44,11 @@ def attack_run(model, adversary, hps):
         with torch.no_grad():
             output = model(clndata)
 
-        # print('original logits ', output.detach().cpu().numpy())
+        #print('original logits ', output.detach().cpu().numpy())
         test_clnloss += F.cross_entropy(
             output, target, reduction='sum').item()
         pred = output.max(1, keepdim=True)[1]
+        #print('pred: ', pred)
         clncorrect += pred.eq(target.view_as(pred)).sum().item()
 
         advdata = adversary.perturb(clndata, target)
@@ -56,15 +57,16 @@ def attack_run(model, adversary, hps):
 
         with torch.no_grad():
             output = model(advdata)
-        # print('adv logits ', output.detach().cpu().numpy())
+        #print('adv logits ', output.detach().cpu().numpy())
 
         test_advloss += F.cross_entropy(
             output, target, reduction='sum').item()
         pred = output.max(1, keepdim=True)[1]
+        #print('pred: ', pred)
         advcorrect += pred.eq(target.view_as(pred)).sum().item()
 
-        # if batch_id == 2:
-        #     exit(0)
+        #if batch_id == 2:
+        #    exit(0)
 
     test_clnloss /= len(test_loader.dataset)
     print('Test set: avg cln loss: {:.4f},'
@@ -82,6 +84,7 @@ def attack_run(model, adversary, hps):
 
 
 def attack_run_rejection_policy(model, adversary, hps):
+    model.eval()
     # Get thresholds
     threshold_list = []
     for label_id in range(hps.n_classes):
@@ -100,16 +103,16 @@ def attack_run_rejection_policy(model, adversary, hps):
 
             ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
-
-        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), min(in_ll_list)))
-        threshold_list.append(min(in_ll_list))  # class mean as threshold
+        
+        thresh = sorted(in_ll_list)[50]
+        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), thresh))
+        threshold_list.append(thresh)  # class mean as threshold
 
     # Evaluation
     dataset = get_dataset(dataset=hps.problem, train=False)
     # hps.n_batch_test = 1
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
-    model.eval()
     clncorrect = 0
     cln_reject = 0
     advcorrect = 0
@@ -191,8 +194,9 @@ def fgsm_attack(model, hps):
 
 
 def linfPGD_attack(model, hps):
-    eps_list = [0., 0.1, 0.3, 0.5, 0.7]
+    eps_list = [0.1, 0.3, 0.5, 0.7]
 
+    #hps.n_batch_test = 5
     print('============== LinfPGD Summary ===============')
     for eps in eps_list:
         adversary = LinfPGDAttack(
@@ -200,13 +204,14 @@ def linfPGD_attack(model, hps):
             nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=-1.0,
             clip_max=1.0, targeted=hps.targeted)
         print('epsilon = {:.4f}'.format(adversary.eps))
+        #attack_run(model, adversary, hps)
         attack_run_rejection_policy(model, adversary, hps)
 
     print('============== LinfPGD Summary ===============')
 
 
 def l2PGD_attack(model, hps):
-    eps_list = [0., 0.1, 0.3, 0.5, 0.7]
+    eps_list = [0.1, 0.3, 0.5, 0.7]
 
     print('============== L2PGD Summary ===============')
     for eps in eps_list:

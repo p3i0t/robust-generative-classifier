@@ -190,7 +190,7 @@ if __name__ == "__main__":
     #         print()
     import torch
     x = torch.randn(5, 3, 32, 32)
-    model = build_resnet_32x32(19, fc_size=10)
+    model = build_resnet_32x32(9, fc_size=10)
     o_list = model(x, return_full_list=True)
     for o in o_list:
         print('size: ', o.size())
