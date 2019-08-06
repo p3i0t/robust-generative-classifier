@@ -27,10 +27,10 @@ def train(model, optimizer, hps):
     if not os.path.exists(logdir):
         os.mkdir(logdir)
 
-    dataset = get_dataset(dataset=hps.problem, train=True)
+    dataset = get_dataset(data_name=hps.problem, train=True)
     train_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_train, shuffle=True)
     
-    dataset = get_dataset(dataset=hps.problem, train=False)
+    dataset = get_dataset(data_name=hps.problem, train=False)
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
     writer = SummaryWriter()
@@ -102,7 +102,7 @@ def inference(model, hps):
                                                                             hps.rep_size))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
-    dataset = get_dataset(dataset=hps.problem, train=True)
+    dataset = get_dataset(data_name=hps.problem, train=True)
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=True)
 
     acc_list = []
@@ -117,7 +117,7 @@ def inference(model, hps):
     print('Train accuracy: {:.4f}'.format(np.mean(acc_list)))
 
     for label_id in range(hps.n_classes):
-        dataset = get_dataset(dataset=hps.problem, train=False, label_id=label_id)
+        dataset = get_dataset(data_name=hps.problem, train=False, label_id=label_id)
         test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
         acc_list = []
@@ -152,7 +152,7 @@ def fgsm_evaluation(model, hps):
         correct = 0
         adv_examples = []
 
-        dataset = get_dataset(dataset=hps.problem, train=False)
+        dataset = get_dataset(data_name=hps.problem, train=False)
         test_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=False)
 
         # Loop over all examples in test set
@@ -242,7 +242,7 @@ def noise_attack(model, hps):
                                                                             hps.rep_size))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
-    dataset = get_dataset(dataset=hps.problem, train=False)
+    dataset = get_dataset(data_name=hps.problem, train=False)
     test_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=True)
 
     epsilon = 1e-2
@@ -279,7 +279,7 @@ def ood_inference(model, hps):
     threshold_list = []
     for label_id in range(hps.n_classes):
         # No data augmentation(crop_flip=False) when getting in-distribution thresholds
-        dataset = get_dataset(dataset=hps.problem, train=True, label_id=label_id, crop_flip=False)
+        dataset = get_dataset(data_name=hps.problem, train=True, label_id=label_id, crop_flip=False)
         in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
         print('Inference on {}, label_id {}'.format(hps.problem, label_id))
@@ -300,7 +300,7 @@ def ood_inference(model, hps):
 
     print('Inference on {}'.format(out_problem))
     # eval on whole test set
-    dataset = get_dataset(dataset=out_problem, train=False)
+    dataset = get_dataset(data_name=out_problem, train=False)
     out_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
     reject_acc_dict = dict([(str(label_id), [])for label_id in range(hps.n_classes)])
@@ -335,7 +335,7 @@ def noise_ood_inference(model, hps):
     threshold_list = []
     for label_id in range(hps.n_classes):
         # No data augmentation(crop_flip=False) when getting in-distribution thresholds
-        dataset = get_dataset(dataset=hps.problem, train=True, label_id=label_id, crop_flip=False)
+        dataset = get_dataset(data_name=hps.problem, train=True, label_id=label_id, crop_flip=False)
         in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
         print('Inference on {}, label_id {}'.format(hps.problem, label_id))

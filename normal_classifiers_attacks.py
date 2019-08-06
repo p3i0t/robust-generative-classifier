@@ -25,10 +25,10 @@ def train(model, optimizer, hps):
     if not os.path.exists(logdir):
         os.mkdir(logdir)
 
-    dataset = get_dataset(dataset=hps.problem, train=True)
+    dataset = get_dataset(data_name=hps.problem, train=True)
     train_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_train, shuffle=True)
 
-    dataset = get_dataset(dataset=hps.problem, train=False)
+    dataset = get_dataset(data_name=hps.problem, train=False)
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
     min_loss = 1e3
@@ -81,7 +81,7 @@ def inference(model, hps):
     checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(hps.encoder_name, hps.problem))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
-    dataset = get_dataset(dataset=hps.problem, train=True)
+    dataset = get_dataset(data_name=hps.problem, train=True)
     # test_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=False)
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=True)
 
@@ -96,7 +96,7 @@ def inference(model, hps):
 
     print('Train accuracy: {:.4f}'.format(np.mean(acc_list)))
 
-    dataset = get_dataset(dataset=hps.problem, train=False)
+    dataset = get_dataset(data_name=hps.problem, train=False)
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
     acc_list = []
@@ -131,7 +131,7 @@ def fgsm_evaluation(model, hps):
         correct = 0
         adv_examples = []
 
-        dataset = get_dataset(dataset=hps.problem, train=False)
+        dataset = get_dataset(data_name=hps.problem, train=False)
         test_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=False)
 
         # Loop over all examples in test set

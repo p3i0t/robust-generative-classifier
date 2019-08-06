@@ -21,7 +21,8 @@ from utils import get_dataset, cal_parameters
 
 
 def attack_run(model, adversary, hps):
-    dataset = get_dataset(dataset=hps.problem, train=False)
+    model.eval()
+    dataset = get_dataset(data_name=hps.problem, train=False)
     # hps.n_batch_test = 1
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
@@ -89,7 +90,7 @@ def attack_run_rejection_policy(model, adversary, hps):
     threshold_list = []
     for label_id in range(hps.n_classes):
         # No data augmentation(crop_flip=False) when getting in-distribution thresholds
-        dataset = get_dataset(dataset=hps.problem, train=True, label_id=label_id, crop_flip=False)
+        dataset = get_dataset(data_name=hps.problem, train=True, label_id=label_id, crop_flip=False)
         in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
         print('Inference on {}, label_id {}'.format(hps.problem, label_id))
@@ -109,7 +110,7 @@ def attack_run_rejection_policy(model, adversary, hps):
         threshold_list.append(thresh)  # class mean as threshold
 
     # Evaluation
-    dataset = get_dataset(dataset=hps.problem, train=False)
+    dataset = get_dataset(data_name=hps.problem, train=False)
     # hps.n_batch_test = 1
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
@@ -174,7 +175,7 @@ def attack_run_rejection_policy(model, adversary, hps):
 
 
 def fgsm_attack(model, hps):
-    eps_list = [0., 0.1, 0.3, 0.5, 0.7]
+    eps_list = [0., 0.1, 0.2, 0.4, 0.5]
 
     print('============== FGSM Summary ===============')
 

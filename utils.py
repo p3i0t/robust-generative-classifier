@@ -4,10 +4,10 @@ import torch
 import numpy as np
 
 
-def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None, crop_flip=True):
+def get_dataset(data_name='mnist', data_dir='data', train=True, label_id=None, crop_flip=True):
     """
     Get a dataset.
-    :param dataset: str, name of dataset.
+    :param data_name: str, name of dataset.
     :param data_dir: str, base directory of data.
     :param train: bool, return train set if True, or test set if False.
     :param label_id: None or int, return data with particular label_id.
@@ -19,13 +19,13 @@ def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None, cro
                                             transforms.RandomCrop(32, padding=4),
                                             transforms.RandomHorizontalFlip(),
                                             transforms.ToTensor(),
-                                            transforms.Normalize((0.5,), (0.5,))  # 1-channel, scale to [-1, 1]
+                                            # transforms.Normalize((0.5,), (0.5,))  # 1-channel, scale to [-1, 1]
                                         ])
 
     transform_1d = transforms.Compose([
                 transforms.Resize((32, 32)),
                 transforms.ToTensor(),
-                transforms.Normalize((0.5,), (0.5, ))
+                #transforms.Normalize((0.5,), (0.5, ))
             ])
 
     transform_3d_crop_flip = transforms.Compose([
@@ -40,7 +40,7 @@ def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None, cro
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
 
-    if dataset == 'mnist':
+    if data_name == 'mnist':
         #if train:
             # when train is True, we use transform_1d_crop_flip by default unless crop_flip is set to False
         #    transform = transform_1d if crop_flip is False else transform_1d_crop_flip
@@ -49,7 +49,7 @@ def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None, cro
 
         dataset = datasets.MNIST(data_dir, train=train, download=True, transform=transform_1d)
 
-    elif dataset == 'fashion':
+    elif data_name == 'fashion':
         if train:
             # when train is True, we use transform_1d_crop_flip by default unless crop_flip is set to False
             transform = transform_1d if crop_flip is False else transform_1d_crop_flip
@@ -58,7 +58,7 @@ def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None, cro
 
         dataset = datasets.FashionMNIST(data_dir, train=train, download=True, transform=transform)
 
-    elif dataset == 'cifar10':
+    elif data_name == 'cifar10':
         if train:
             # when train is True, we use transform_1d_crop_flip by default unless crop_flip is set to False
             transform = transform_3d if crop_flip is False else transform_3d_crop_flip
@@ -67,7 +67,7 @@ def get_dataset(dataset='mnist', data_dir='data', train=True, label_id=None, cro
 
         dataset = datasets.CIFAR10(data_dir, train=train, download=True, transform=transform)
     else:
-        print('dataset {} is not available'.format(dataset))
+        print('dataset {} is not available'.format(data_name))
 
     if label_id is not None:
         # select samples with particular label
@@ -99,7 +99,7 @@ def cal_parameters(model):
 
 
 if __name__ == '__main__':
-    dataset = get_dataset(dataset='cifar10', train=True, label_id=1, crop_flip=False)
+    dataset = get_dataset(data_name='cifar10', train=True, label_id=1, crop_flip=False)
     train_loader = DataLoader(dataset=dataset, batch_size=10, shuffle=False)
     # dataset = get_dataset(label_id=1)
     # train_loader = DataLoader(dataset=dataset, batch_size=10, shuffle=True)
