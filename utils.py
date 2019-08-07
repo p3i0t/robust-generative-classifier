@@ -88,9 +88,9 @@ def get_dataset(data_name='mnist', data_dir='data', train=True, label_id=None, c
 
 def cal_parameters(model):
     """
-    Calculate the parameters of a Pytorch model.
+    Calculate the number of parameters of a Pytorch model.
     :param model: torch.nn.Module
-    :return: number of parameters.
+    :return: int, number of parameters.
     """
     cnt = 0
     for para in model.parameters():

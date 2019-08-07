@@ -78,7 +78,9 @@ def inference(model, hps):
     torch.manual_seed(hps.seed)
     np.random.seed(hps.seed)
 
-    checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(hps.encoder_name, hps.problem))
+    checkpoint_path = os.path.join(hps.log_dir, '{}_{}_d{}.pth'.format(model.encoder_name,
+                                                                            hps.problem,
+                                                                            hps.rep_size))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
     dataset = get_dataset(data_name=hps.problem, train=True)
@@ -252,10 +254,6 @@ if __name__ == "__main__":
     # Model hyperparams:
     parser.add_argument("--image_size", type=int,
                         default=32, help="Image size")
-    parser.add_argument("--mi_units", type=int,
-                        default=256, help="output size of 1x1 conv network for mutual information estimation")
-    parser.add_argument("--rep_size", type=int,
-                        default=128, help="size of the global representation from encoder")
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
 
@@ -272,6 +270,8 @@ if __name__ == "__main__":
     if hps.problem == 'cifar10':
         hps.image_channel = 3
     elif hps.problem == 'mnist':
+        hps.image_channel = 1
+    elif hps.problem == 'fashion':
         hps.image_channel = 1
 
     n_encoder_layers = int(hps.encoder_name.strip('resnet'))
