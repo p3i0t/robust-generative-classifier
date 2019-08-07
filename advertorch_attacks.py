@@ -175,7 +175,7 @@ def attack_run_rejection_policy(model, adversary, hps):
 
 
 def fgsm_attack(model, hps):
-    eps_list = [0., 0.1, 0.2, 0.4, 0.5]
+    eps_list = [0., 0.1, 0.2, 0.3, 0.4, 0.5]
 
     print('============== FGSM Summary ===============')
 
@@ -195,7 +195,7 @@ def fgsm_attack(model, hps):
 
 
 def linfPGD_attack(model, hps):
-    eps_list = [0.1, 0.3, 0.5, 0.7]
+    eps_list = [0., 0.1, 0.2, 0.3, 0.4, 0.5]
 
     #hps.n_batch_test = 5
     print('============== LinfPGD Summary ===============')
@@ -205,14 +205,14 @@ def linfPGD_attack(model, hps):
             nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=-1.0,
             clip_max=1.0, targeted=hps.targeted)
         print('epsilon = {:.4f}'.format(adversary.eps))
-        #attack_run(model, adversary, hps)
-        attack_run_rejection_policy(model, adversary, hps)
+        attack_run(model, adversary, hps)
+        #attack_run_rejection_policy(model, adversary, hps)
 
     print('============== LinfPGD Summary ===============')
 
 
 def l2PGD_attack(model, hps):
-    eps_list = [0.1, 0.3, 0.5, 0.7]
+    eps_list = [0.1, 0.1, 0.2, 0.3, 0.4, 0.5]
 
     print('============== L2PGD Summary ===============')
     for eps in eps_list:

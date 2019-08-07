@@ -116,6 +116,7 @@ def inference(model, hps):
 
     print('Train accuracy: {:.4f}'.format(np.mean(acc_list)))
 
+    global_acc_list = []
     for label_id in range(hps.n_classes):
         dataset = get_dataset(data_name=hps.problem, train=False, label_id=label_id)
         test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
@@ -129,7 +130,10 @@ def inference(model, hps):
             acc = (preds == y).float().mean()
             acc_list.append(acc.item())
 
-        print('Test accuracy: {:.4f}'.format(np.mean(acc_list)))
+        acc = np.mean(acc_list)
+        global_acc_list.append(acc)
+        print('Class label {}, Test accuracy: {:.4f}'.format(label_id, acc))
+    print('Test accracy: {:.4f}'.format(np.mean(global_acc_list)))
 
 
 # FGSM attack code
