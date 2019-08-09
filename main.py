@@ -475,6 +475,8 @@ if __name__ == "__main__":
 
     if hps.problem == 'cifar10':
         hps.image_channel = 3
+    elif hps.problem == 'svhn':
+        hps.image_channel = 3
     elif hps.problem == 'mnist':
         hps.image_channel = 1
     elif hps.problem == 'fashion':
