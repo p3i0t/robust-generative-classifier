@@ -78,9 +78,8 @@ def inference(model, hps):
     torch.manual_seed(hps.seed)
     np.random.seed(hps.seed)
 
-    checkpoint_path = os.path.join(hps.log_dir, '{}_{}_d{}.pth'.format(model.encoder_name,
-                                                                            hps.problem,
-                                                                            hps.rep_size))
+    checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(hps.encoder_name, hps.problem))
+                                                                            
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
     dataset = get_dataset(data_name=hps.problem, train=True)
@@ -106,7 +105,7 @@ def inference(model, hps):
         x = x.to(hps.device)
         y = y.to(hps.device)
 
-        preds = model.inference(x).argmax(dim=1)
+        preds = model(x).argmax(dim=1)
         acc = (preds == y).float().mean()
         acc_list.append(acc.item())
 
@@ -254,6 +253,8 @@ if __name__ == "__main__":
     # Model hyperparams:
     parser.add_argument("--image_size", type=int,
                         default=32, help="Image size")
+    parser.add_argument("--encoder_name", type=str, default='resnet25',
+                        help="encoder name: resnet#")
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
 
