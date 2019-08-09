@@ -66,18 +66,33 @@ def get_dataset(data_name='mnist', data_dir='data', train=True, label_id=None, c
             transform = transform_3d
 
         dataset = datasets.CIFAR10(data_dir, train=train, download=True, transform=transform)
+    elif data_name == 'svhn':
+        if train:
+            # when train is True, we use transform_1d_crop_flip by default unless crop_flip is set to False
+            transform = transform_3d if crop_flip is False else transform_3d_crop_flip
+            split = 'train'
+        else:
+            transform = transform_3d
+            split = 'test'
+
+        dataset = datasets.SVHN(data_dir, split=split, download=True, transform=transform)
     else:
         print('dataset {} is not available'.format(data_name))
 
     if label_id is not None:
         # select samples with particular label
-        if isinstance(dataset.targets, list):
+        if data_name == 'cifar10': #isinstance(dataset.targets, list):
             # for cifar10
             targets = np.array(dataset.targets)
             idx = targets == label_id
             dataset.targets = list(targets[idx])
             dataset.data = dataset.data[idx]
+        elif data_name == 'svhn':
+            idx = dataset.labels == label_id
+            dataset.labels = dataset.labels[idx]
+            dataset.data = dataset.data[idx]
         else:
+            # for MNIST and FashionMNIST
             targets = dataset.targets
             data = dataset.data
             idx = targets == label_id
