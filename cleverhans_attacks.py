@@ -217,10 +217,6 @@ def attack_run_rejection_policy(model, hps, eps):
     return cln_acc, adv_acc
 
 
-def fgsm_attack(model, hps):
-
-
-
 if __name__ == "__main__":
     # This enables a ctr-C without triggering errors
     import signal
@@ -264,6 +260,8 @@ if __name__ == "__main__":
     # Model hyperparams:
     parser.add_argument("--image_size", type=int,
                         default=32, help="Image size")
+    parser.add_argument("--mi_units", type=int,
+                        default=256, help="output size of 1x1 conv network for mutual information estimation")
     parser.add_argument("--rep_size", type=int,
                         default=128, help="size of the global representation from encoder")
     parser.add_argument("--encoder_name", type=str, default='resnet25',
@@ -296,6 +294,8 @@ if __name__ == "__main__":
     hps.device = torch.device("cuda" if use_cuda else "cpu")
 
     if hps.problem == 'cifar10':
+        hps.image_channel = 3
+    elif hps.problem == 'svhn':
         hps.image_channel = 3
     elif hps.problem == 'mnist':
         hps.image_channel = 1
@@ -336,7 +336,9 @@ if __name__ == "__main__":
     if hps.problem == 'mnist':
         eps_list = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
     elif hps.problem == 'cifar10':
-        eps_list = [0.0, 0.02, 0.05, 0.1, 0.2]
+        eps_list = [0.0, 0.05, 0.1, 0.2, 0.3]
+    elif hps.problem == 'svhn':
+        eps_list = [0.0, 0.05, 0.1, 0.2, 0.3]
     else:
         print('param problem {} not availabel'.format(hps.problem))
 
@@ -345,7 +347,7 @@ if __name__ == "__main__":
     for eps in eps_list:
         print('epsilon = {:.2f}'.format(eps))
         if hps.rejection:
-            attack_run_rejection_policy(model, hps. eps)
+            attack_run_rejection_policy(model, hps, eps)
         else:
             attack_run(model, hps, eps)
 
