@@ -25,13 +25,13 @@ def attack_run(model, hps, eps):
     # hps.n_batch_test = 1
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
-    model.eval()
     test_clnloss = 0
     clncorrect = 0
     test_advloss = 0
     advcorrect = 0
 
-    attack_path = os.path.join(hps.attack_dir, hps.attack)
+    path = '{}_{}{}_images'.format(hps.problem, hps.attack, hps.norm)
+    attack_path = os.path.join(hps.attack_dir, path)
     if not os.path.exists(attack_path):
         os.mkdir(attack_path)
 
@@ -90,18 +90,19 @@ def attack_run(model, hps, eps):
         # if batch_id == 2:
         #    exit(0)
 
+    cln_acc = clncorrect / len(test_loader.dataset)
+    adv_acc = advcorrect / len(test_loader.dataset)
+
     test_clnloss /= len(test_loader.dataset)
     print('Test set: avg cln loss: {:.4f},'
-          ' cln acc: {}/{}'.format(
-        test_clnloss, clncorrect, len(test_loader.dataset)))
+          ' cln acc: {}/{}, {:.4f}'.format(
+        test_clnloss, clncorrect, len(test_loader.dataset), cln_acc))
 
     test_advloss /= len(test_loader.dataset)
     print('Test set: avg adv loss: {:.4f},'
-          ' adv acc: {}/{}'.format(
-        test_advloss, advcorrect, len(test_loader.dataset)))
+          ' adv acc: {}/{}, {:.4f}'.format(
+        test_advloss, advcorrect, len(test_loader.dataset), adv_acc))
 
-    cln_acc = clncorrect / len(test_loader.dataset)
-    adv_acc = advcorrect / len(test_loader.dataset)
     return cln_acc, adv_acc
 
 
@@ -140,7 +141,8 @@ def attack_run_rejection_policy(model, hps, eps):
     advcorrect = 0
     adv_reject = 0
 
-    attack_path = os.path.join(hps.attack_dir, hps.attack)
+    path = '{}_{}{}'.format(hps.problem, hps.attack, hps.norm)
+    attack_path = os.path.join(hps.attack_dir, path)
     if not os.path.exists(attack_path):
         os.mkdir(attack_path)
 
@@ -209,11 +211,10 @@ def attack_run_rejection_policy(model, hps, eps):
         #     exit(0)
 
     n = len(test_loader.dataset)
+    cln_acc = clncorrect / n
+    adv_acc = advcorrect / n
     print('Test set: cln acc: {:.4f}, reject rate: {:.4f}'.format(clncorrect / n, cln_reject / n))
     print('Test set: adv acc: {:.4f}, reject success rate: {:.4f}'.format(advcorrect / n, adv_reject / n))
-
-    cln_acc = clncorrect / len(test_loader.dataset)
-    adv_acc = advcorrect / len(test_loader.dataset)
     return cln_acc, adv_acc
 
 
@@ -344,11 +345,16 @@ if __name__ == "__main__":
 
     print('============== {} Summary ==============='.format(hps.attack))
 
+    adv_acc_list = []
     for eps in eps_list:
         print('epsilon = {:.2f}'.format(eps))
         if hps.rejection:
             attack_run_rejection_policy(model, hps, eps)
         else:
-            attack_run(model, hps, eps)
+            cln_acc, adv_acc = attack_run(model, hps, eps)
+            adv_acc_list.append(adv_acc)
 
     print('=========================================')
+
+    checkpoint = {'eps_list': eps_list, 'adv_acc_list': adv_acc_list}
+    torch.save(checkpoint, '{}_{}{}.pt'.format(hps.problem, hps.attack, hps.norm))
