@@ -39,7 +39,7 @@ def attack_run(model, hps, eps):
         # Note that images are scaled to [-1.0, 1.0]
         clndata, target = clndata.to(hps.device), target.to(hps.device)
         path = os.path.join(attack_path, 'original_{}.png'.format(batch_id))
-        save_image(clndata, path, normalize=True)
+        save_image(clndata[:2], path, normalize=True)
 
         with torch.no_grad():
             output = model(clndata)
@@ -75,7 +75,7 @@ def attack_run(model, hps, eps):
             raise ValueError('param attack should be fgsm or pgd, {} is given'.format(hps.attack))
 
         path = os.path.join(attack_path, '{}perturbed_eps{:.2f}_{}.png'.format(prefix, eps, batch_id))
-        save_image(advdata, path, normalize=True)
+        save_image(advdata[:2], path, normalize=True)
 
         with torch.no_grad():
             output = model(advdata)
@@ -357,4 +357,4 @@ if __name__ == "__main__":
     print('=========================================')
 
     checkpoint = {'eps_list': eps_list, 'adv_acc_list': adv_acc_list}
-    torch.save(checkpoint, '{}_{}{}.pt'.format(hps.problem, hps.attack, hps.norm))
+    torch.save(checkpoint, os.path.join(hps.attack_dir, '{}_{}{}.pt'.format(hps.problem, hps.attack, hps.norm)))
