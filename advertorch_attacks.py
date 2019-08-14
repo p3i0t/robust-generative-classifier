@@ -236,7 +236,7 @@ def cw_l2_attack(model, hps):
                                           confidence=confidence,
                                           clip_min=0.,
                                           clip_max=1.,
-                                          max_iterations=500
+                                          max_iterations=200
                                           )
         print('confidence = {}'.format(adversary.confidence))
         hps.n_batch_test = 1
