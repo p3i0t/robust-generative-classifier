@@ -116,5 +116,7 @@ def optimize_linear(grad, eps, norm=np.inf):
 
   # Scale perturbation to be the solution for the norm=eps rather than
   # norm=1 problem
+  #print('optimal_perturbation ', optimal_perturbation)
+  #print('perturbation max ', optimal_perturbation.max(), 'min ',  optimal_perturbation.min())
   scaled_perturbation = eps * optimal_perturbation
   return scaled_perturbation

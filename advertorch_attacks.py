@@ -45,7 +45,7 @@ def attack_run(model, adversary, hps):
         with torch.no_grad():
             output = model(clndata)
 
-        #print('original logits ', output.detach().cpu().numpy())
+        print('original logits ', output.detach().cpu().numpy())
         test_clnloss += F.cross_entropy(
             output, target, reduction='sum').item()
         pred = output.max(1, keepdim=True)[1]
@@ -58,7 +58,7 @@ def attack_run(model, adversary, hps):
 
         with torch.no_grad():
             output = model(advdata)
-        #print('adv logits ', output.detach().cpu().numpy())
+        print('adv logits ', output.detach().cpu().numpy())
 
         test_advloss += F.cross_entropy(
             output, target, reduction='sum').item()
@@ -68,6 +68,7 @@ def attack_run(model, adversary, hps):
 
         #if batch_id == 2:
         #    exit(0)
+        break
 
     test_clnloss /= len(test_loader.dataset)
     print('Test set: avg cln loss: {:.4f},'
@@ -236,10 +237,10 @@ def cw_l2_attack(model, hps):
                                           confidence=confidence,
                                           clip_min=0.,
                                           clip_max=1.,
-                                          max_iterations=500
+                                          max_iterations=600
                                           )
         print('confidence = {}'.format(adversary.confidence))
-        hps.n_batch_test = 1
+        hps.n_batch_test = 5 
         attack_run(model, adversary, hps)
 
     print('============== CW_l2 Summary ===============')

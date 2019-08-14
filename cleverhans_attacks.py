@@ -89,6 +89,12 @@ def attack_run(model, hps, eps):
 
         # if batch_id == 2:
         #    exit(0)
+        #break
+
+    #adv_sampels = torch.cat(adv_samples_list, dim=0)
+
+    #path = os.path.join(attack_path, 'adv_samples.png')
+    #save_image(adv_samples, path, nrow=6, normalize=True)
 
     cln_acc = clncorrect / len(test_loader.dataset)
     adv_acc = advcorrect / len(test_loader.dataset)
@@ -103,7 +109,7 @@ def attack_run(model, hps, eps):
           ' adv acc: {}/{}, {:.4f}'.format(
         test_advloss, advcorrect, len(test_loader.dataset), adv_acc))
 
-    return cln_acc, adv_acc
+    return cln_acc, adv_acc, advdata[:2]
 
 
 def attack_run_rejection_policy(model, hps, eps):
@@ -346,14 +352,19 @@ if __name__ == "__main__":
     print('============== {} Summary ==============='.format(hps.attack))
 
     adv_acc_list = []
+    adv_samples_list = []
     for eps in eps_list:
         print('epsilon = {:.2f}'.format(eps))
         if hps.rejection:
             attack_run_rejection_policy(model, hps, eps)
         else:
-            cln_acc, adv_acc = attack_run(model, hps, eps)
+            cln_acc, adv_acc, adv_samples = attack_run(model, hps, eps)
             adv_acc_list.append(adv_acc)
+            adv_samples_list.append(adv_samples)
 
+    adv_samples = torch.cat(adv_samples_list, dim=0)
+    path = '{}_{}{}_samples.png'.format(hps.problem, hps.attack, hps.norm)
+    save_image(adv_samples, path, nrow=2, normalize=True)
     print('=========================================')
 
     checkpoint = {'eps_list': eps_list, 'adv_acc_list': adv_acc_list}

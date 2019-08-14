@@ -66,7 +66,9 @@ def fast_gradient_method(model_fn, x, eps, norm,
 
   # Define gradient of loss wrt input
   loss.backward()
+  #print('x.grad: ', x.grad[0], x.grad[0].max(), x.grad[0].min())
   optimal_perturbation = optimize_linear(x.grad, eps, norm)
+  #print('fgsm perturbation: ', optimal_perturbation)
 
   # Add perturbation to original example to obtain adversarial example
   adv_x = x + optimal_perturbation
