@@ -360,7 +360,7 @@ def noise_ood_inference(model, hps):
             ll_, y_ = ll[idx], y[idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
 
-        thresh = sorted(in_ll_list)[200]
+        thresh = sorted(in_ll_list)[100]
         print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), thresh))
         #print('head 10: ', sorted(in_ll_list)[:10])
         threshold_list.append(thresh)  # class mean as threshold
@@ -373,7 +373,7 @@ def noise_ood_inference(model, hps):
     reject_acc_dict = dict([(str(label_id), []) for label_id in range(hps.n_classes)])
     # Noise as out-distribution samples
     for batch_id in range(n_batches):
-        noises = torch.randn((batch_size, shape[1], shape[2], shape[3])).uniform_(-1., 1.).to(hps.device) # sample noise
+        noises = torch.randn((batch_size, shape[1], shape[2], shape[3])).uniform_(0., 1.).to(hps.device) # sample noise
         ll = model(noises)
 
         for label_id in range(hps.n_classes):
@@ -390,7 +390,7 @@ def noise_ood_inference(model, hps):
     reject_acc_dict = dict([(str(label_id), []) for label_id in range(hps.n_classes)])
     # Noise as out-distribution samples
     for batch_id in range(n_batches):
-        noises = torch.randn((batch_size, shape[1], shape[2], shape[3])).clamp_(min=-1., max=1.).to(hps.device)  # sample noise
+        noises = 0.5 + torch.randn((batch_size, shape[1], shape[2], shape[3])).clamp_(min=-0.5, max=0.5).to(hps.device)  # sample noise
         ll = model(noises)
 
         for label_id in range(hps.n_classes):

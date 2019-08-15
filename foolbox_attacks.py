@@ -168,9 +168,13 @@ if __name__ == "__main__":
         adversarial = attack(img.cpu().numpy(), label.cpu().numpy(), log_every_n_steps=999999)
 
         img = torch.tensor(img)
+        ll = model(img.unsqueeze(dim=0).to(hps.device))
+        print('original ll: ', ll)
         save_image(img, 'boundary_original.png')
 
         adv = torch.tensor(adversarial)
+        ll = model(adv.unsqueeze(dim=0).to(hps.device))
+        print('adv ll: ', ll)
         save_image(adv, 'boundary_adv.png')
         classification_label = int(np.argmax(fmodel.predictions(img.cpu().numpy())))
         adversarial_label = int(np.argmax(fmodel.predictions(adversarial)))
@@ -190,5 +194,6 @@ if __name__ == "__main__":
         if np.array_equal(adversarial, img):
             print("Boundary attack did not find adversarial!")
 
-        break
+        if batch_id == 5:
+            break
 

@@ -190,7 +190,8 @@ def fgsm_attack(model, hps):
             targeted=hps.targeted
         )
         print('epsilon = {:.4f}'.format(adversary.eps))
-        attack_run(model, adversary, hps)
+        #attack_run(model, adversary, hps)
+        attack_run_rejection_policy(model, adversary, hps)
 
     print('============== FGSM Summary ===============')
 
@@ -315,6 +316,8 @@ if __name__ == "__main__":
     hps.device = torch.device("cuda" if use_cuda else "cpu")
 
     if hps.problem == 'cifar10':
+        hps.image_channel = 3
+    elif hps.problem == 'svhn':
         hps.image_channel = 3
     elif hps.problem == 'mnist':
         hps.image_channel = 1
