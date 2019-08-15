@@ -136,104 +136,80 @@ def inference(model, hps):
     print('Test accracy: {:.4f}'.format(np.mean(global_acc_list)))
 
 
-# FGSM attack code
-def fgsm_attack(image, epsilon, data_grad):
-    # Collect the element-wise sign of the data gradient
-    sign_data_grad = data_grad.sign()
-    # Create the perturbed image by adjusting each pixel of the input image
-    perturbed_image = image + epsilon*sign_data_grad
-    # Adding clipping to maintain [0,1] range
-    # perturbed_image = torch.clamp(perturbed_image, 0, 1)
-    # Return the perturbed image
-    return perturbed_image
+def inference_rejection(model, hps):
+    threshold_percent = 0.01
+    torch.manual_seed(hps.seed)
+    np.random.seed(hps.seed)
 
-
-def fgsm_evaluation(model, hps):
-    # helper function for particular epsilon
-    def test(model, hps, epsilon):
-        model.eval()
-        # Accuracy counter
-        correct = 0
-        adv_examples = []
-
-        dataset = get_dataset(data_name=hps.problem, train=False)
-        test_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=False)
-
-        # Loop over all examples in test set
-        for x, y in test_loader:
-            x = x.to(hps.device)
-            y = y.to(hps.device)
-            # Set requires_grad attribute of tensor. Important for Attack
-            x.requires_grad = True
-
-            # Forward pass the data through the model
-            output = model(x, log_softmax=True)
-            init_pred = output.max(1, keepdim=True)[1]  # get the index of the max log-probability
-
-            # If the initial prediction is wrong, dont bother attacking, just move on
-            if init_pred.item() != y.item():
-                continue
-
-            # Calculate the loss
-            loss = F.nll_loss(output, y)
-
-            # Zero all existing gradients
-            model.zero_grad()
-
-            # Calculate gradients of model in backward pass
-            loss.backward()
-
-            # Collect datagrad
-            data_grad = x.grad.data
-
-            # Call FGSM Attack
-            perturbed_data = fgsm_attack(x, epsilon, data_grad)
-
-            # Re-classify the perturbed image
-            output = model(perturbed_data, log_softmax=True)
-
-            # Check for success
-            final_pred = output.max(1, keepdim=True)[1]  # get the index of the max log-probability
-            if final_pred.item() == y.item():
-                correct += 1
-                # Special case for saving 0 epsilon examples
-                if (epsilon == 0) and (len(adv_examples) < 5):
-                    adv_ex = perturbed_data.squeeze().detach().cpu().numpy()
-                    adv_examples.append((init_pred.item(), final_pred.item(), adv_ex))
-            else:
-                # Save some adv examples for visualization later
-                if len(adv_examples) < 5:
-                    adv_ex = perturbed_data.squeeze().detach().cpu().numpy()
-                    adv_examples.append((init_pred.item(), final_pred.item(), adv_ex))
-
-        # Calculate final accuracy for this epsilon
-        final_acc = correct / float(len(test_loader))
-        print("Epsilon: {}\tTest Accuracy = {} / {} = {}".format(epsilon, correct, len(test_loader), final_acc))
-
-        # Return the accuracy and an adversarial example
-        return final_acc, adv_examples
-
-    epsilons = [0., 0.05, .1, 0.15, .2, 0.25, .3]
-
-    print("load pre-trained model")
     checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}.pth'.format(model.encoder_name,
                                                                             hps.problem,
                                                                             hps.rep_size))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
-    accuracies = []
-    examples = []
+    model.eval()
 
-    # Run test for each epsilon
-    for eps in epsilons:
-        acc, ex = test(model, hps, eps)
-        accuracies.append(acc)
-        examples.append(ex)
+    # Get thresholds
+    threshold_list = []
+    for label_id in range(hps.n_classes):
+        # No data augmentation(crop_flip=False) when getting in-distribution thresholds
+        dataset = get_dataset(data_name=hps.problem, train=True, label_id=label_id, crop_flip=False)
+        in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
-    fgsm_checkpoint = dict(zip(epsilons, accuracies))
-    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}_fgsm.pth'.format(model.encoder_name,
-                                                                                 hps.problem,
-                                                                                 hps.rep_size))
-    torch.save(fgsm_checkpoint, checkpoint_path)
+        print('Inference on {}, label_id {}'.format(hps.problem, label_id))
+        in_ll_list = []
+        for batch_id, (x, y) in enumerate(in_test_loader):
+            x = x.to(hps.device)
+            y = y.to(hps.device)
+            ll = model(x)
+
+            correct_idx = ll.argmax(dim=1) == y
+
+            ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
+            in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
+
+        thresh_idx = int(threshold_percent * len(in_ll_list))
+        thresh = sorted(in_ll_list)[thresh_idx]
+        print('threshold_idx/total_size: {}/{}, threshold: {:.3f}'.format(thresh_idx, len(in_ll_list), thresh))
+        threshold_list.append(thresh)  # class mean as threshold
+
+    # Evaluation
+    dataset = get_dataset(data_name=hps.problem, train=False)
+    test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+
+    n_correct = 0
+    n_false = 0
+    n_reject = 0
+
+    attack_path = os.path.join(hps.attack_dir, hps.attack)
+    if not os.path.exists(attack_path):
+        os.mkdir(attack_path)
+
+    thresholds = torch.tensor(threshold_list).to(hps.device)
+
+    for batch_id, (x, target) in enumerate(test_loader):
+        # Note that images are scaled to [-1.0, 1.0]
+        x, target = x.to(hps.device), target.to(hps.device)
+
+        with torch.no_grad():
+            log_lik = model(x)
+
+        values, pred = log_lik.max(dim=1)
+        confidence_idx = values >= thresholds[pred]  # the predictions you have confidence in.
+        reject_idx = values < thresholds[pred]       # the ones rejected.
+
+        n_correct += pred[confidence_idx].eq(target[confidence_idx]).sum().item()
+        n_false += (pred[confidence_idx] != target[confidence_idx]).sum().item()
+        n_reject += reject_idx.float().sum().item()
+
+    n = len(test_loader.dataset)
+    acc = n_correct / n
+    false_rate = n_false / n
+    reject_rate = n_reject / n
+
+    acc_remain = acc / (acc + false_rate)
+
+    print('Test set:\n acc: {:.4f}, false rate: {:.4f}, reject rate: {:.4f}'.format(acc, false_rate, reject_rate))
+    print('acc on remain set: {:.4f}'.format(acc_remain))
+    return acc, reject_rate, acc_remain
 
 
 def noise_attack(model, hps):
@@ -415,6 +391,8 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action='store_true', help="Verbose mode")
     parser.add_argument("--inference", action="store_true",
                         help="Used in inference mode")
+    parser.add_argument("--rejection_inference", action="store_true",
+                        help="Used in inference mode with rejection")
     parser.add_argument("--ood_inference", action="store_true",
                         help="Used in ood inference mode")
     parser.add_argument("--noise_ood_inference", action="store_true",
@@ -490,14 +468,15 @@ if __name__ == "__main__":
     optimizer = Adam(model.parameters(), lr=hps.lr)
 
     print('==>  # Model parameters: {}.'.format(cal_parameters(model)))
-    if hps.fgsm_attack:
-        fgsm_evaluation(model, hps)
-    elif hps.noise_attack:
+
+    if hps.noise_attack:
         noise_attack(model, hps)
     elif hps.inference:
         inference(model, hps)
     elif hps.ood_inference:
         ood_inference(model, hps)
+    elif hps.rejection_inference:
+        inference_rejection(model, hps)
     elif hps.noise_ood_inference:
         noise_ood_inference(model, hps)
     else:
