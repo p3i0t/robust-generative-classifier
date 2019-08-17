@@ -151,7 +151,7 @@ if __name__ == "__main__":
     model.eval()
     fmodel = foolbox.models.PyTorchModel(model, bounds=(0, 1.), num_classes=10)
 
-    dataset = get_dataset(data_name=hps.problem, train=False)
+    dataset = get_dataset(data_name=hps.problem, train=False, label_id=0)
     # hps.n_batch_test = 1
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
