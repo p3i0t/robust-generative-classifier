@@ -162,7 +162,7 @@ if __name__ == "__main__":
         if hps.attack == 'deepfool':
             attack = foolbox.attacks.DeepFoolL2Attack(fmodel)
         elif hps.attack == 'cw':
-            foolbox.attacks.CarliniWagnerL2Attack(fmodel)
+            attack = foolbox.attacks.CarliniWagnerL2Attack(fmodel)
         elif hps.attack == 'boundary':
             attack = foolbox.attacks.BoundaryAttack(fmodel)
         elif hps.attack == 'jsma':
@@ -193,6 +193,5 @@ if __name__ == "__main__":
 
         print("source label: " + str(int(label)) + ", adversarial_label: " + str(
             adversarial_label) + ", classification_label: " + str(classification_label))
-        if batch_id == 5:
-            break
+        break
 
