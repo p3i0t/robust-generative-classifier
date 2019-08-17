@@ -137,7 +137,7 @@ def inference(model, hps):
 
 
 def inference_rejection(model, hps):
-    threshold_percent = 0.01
+    threshold_percent = 0.02
     torch.manual_seed(hps.seed)
     np.random.seed(hps.seed)
 
@@ -178,10 +178,6 @@ def inference_rejection(model, hps):
     n_correct = 0
     n_false = 0
     n_reject = 0
-
-    attack_path = os.path.join(hps.attack_dir, hps.attack)
-    if not os.path.exists(attack_path):
-        os.mkdir(attack_path)
 
     thresholds = torch.tensor(threshold_list).to(hps.device)
 
