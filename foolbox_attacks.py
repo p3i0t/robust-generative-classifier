@@ -75,8 +75,8 @@ if __name__ == "__main__":
     # Attack parameters
     parser.add_argument("--targeted", action="store_true",
                         help="whether perform targeted attack")
-    parser.add_argument("--attack", type=str, default='pgdinf',
-                        help="Location of data")
+    parser.add_argument("--attack", type=str, default='deepfool',
+                        help="attack type")
 
     # Ablation
     parser.add_argument("--seed", type=int, default=123, help="Random seed")
@@ -156,44 +156,43 @@ if __name__ == "__main__":
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
     for batch_id, (x, y) in enumerate(test_loader):
-        # Note that images are scaled to [-1.0, 1.0]
+        # Note that images are scaled to [0., 1.0]
         x, y = x.to(hps.device), y.to(hps.device)
 
-        # foolbox.attacks.CarliniWagnerL2Attack(torch_model)
-
-        attack = foolbox.attacks.BoundaryAttack(fmodel)
+        if hps.attack == 'deepfool':
+            attack = foolbox.attacks.DeepFoolL2Attack(fmodel)
+        elif hps.attack == 'cw':
+            foolbox.attacks.CarliniWagnerL2Attack(fmodel)
+        elif hps.attack == 'boundary':
+            attack = foolbox.attacks.BoundaryAttack(fmodel)
+        elif hps.attack == 'jsma':
+            attack = foolbox.attacks.SaliencyMapAttack(fmodel)
+        else:
+            raise ValueError('param attack {} not available.'.format(hps.attack))
 
         img, label = x[0], y[0]
 
-        adversarial = attack(img.cpu().numpy(), label.cpu().numpy(), log_every_n_steps=999999)
+        adversarial = attack(img.cpu().numpy(), label.cpu().numpy())
 
         img = torch.tensor(img)
         ll = model(img.unsqueeze(dim=0).to(hps.device))
-        print('original ll: ', ll)
-        save_image(img, 'boundary_original.png')
+
+        result_str = '&'.join('{:.1f}'.format(ll) for ll in ll[0].tolist())
+        print('original log_likes: ', result_str)
+        save_image(img, '{}_original.png'.format(hps.attack))
 
         adv = torch.tensor(adversarial)
         ll = model(adv.unsqueeze(dim=0).to(hps.device))
-        print('adv ll: ', ll)
-        save_image(adv, 'boundary_adv.png')
+
+        result_str = '&'.join('{:.1f}'.format(ll) for ll in ll[0].tolist())
+        print('adv log_likes: ', result_str)
+        save_image(adv, '{}_adv.png'.format(hps.attack))
+
         classification_label = int(np.argmax(fmodel.predictions(img.cpu().numpy())))
         adversarial_label = int(np.argmax(fmodel.predictions(adversarial)))
 
-
-
         print("source label: " + str(int(label)) + ", adversarial_label: " + str(
             adversarial_label) + ", classification_label: " + str(classification_label))
-
-        original = img.cpu().numpy()
-        new_adversarial = original + 1.001 * (adversarial - original)
-        new_adversarial_label = int(np.argmax(fmodel.predictions(new_adversarial)))
-
-        print("source label: " + str(int(label)) + ", new_adversarial_label: " + str(
-            new_adversarial_label) + ", classification_label: " + str(classification_label))
-
-        if np.array_equal(adversarial, img):
-            print("Boundary attack did not find adversarial!")
-
         if batch_id == 5:
             break
 
