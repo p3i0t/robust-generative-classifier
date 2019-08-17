@@ -178,14 +178,18 @@ if __name__ == "__main__":
 
         result_str = ' & '.join('{:.1f}'.format(ll) for ll in ll[0].tolist())
         print('original log_likes: ', result_str)
-        save_image(img, '{}_{}_original.png'.format(hps.problem, hps.attack))
+
+        path = os.path.join(hps.attack_dir, '{}_{}_original.png'.format(hps.problem, hps.attack))
+        save_image(img, path)
 
         adv = torch.tensor(adversarial)
         ll = model(adv.unsqueeze(dim=0).to(hps.device))
 
         result_str = ' & '.join('{:.1f}'.format(ll) for ll in ll[0].tolist())
         print('adv log_likes: ', result_str)
-        save_image(adv, '{}_{}_adv.png'.format(hps.problem, hps.attack))
+
+        path = os.path.join(hps.attack_dir, '{}_{}_adv.png'.format(hps.problem, hps.attack))
+        save_image(adv, path)
 
         classification_label = int(np.argmax(fmodel.predictions(img.cpu().numpy())))
         adversarial_label = int(np.argmax(fmodel.predictions(adversarial)))
