@@ -112,100 +112,91 @@ def inference(model, hps):
     print('Test accuracy: {:.4f}'.format(np.mean(acc_list)))
 
 
-# FGSM attack code
-def fgsm_attack(image, epsilon, data_grad):
-    # Collect the element-wise sign of the data gradient
-    sign_data_grad = data_grad.sign()
-    # Create the perturbed image by adjusting each pixel of the input image
-    perturbed_image = image + epsilon * sign_data_grad
-    # Adding clipping to maintain [0,1] range
-    # perturbed_image = torch.clamp(perturbed_image, 0, 1)
-    # Return the perturbed image
-    return perturbed_image
+def noise_ood_inference(model, hps):
+    model.eval()
+    torch.manual_seed(hps.seed)
+    np.random.seed(hps.seed)
 
+    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}.pth'.format(model.encoder_name,
+                                                                            hps.problem,
+                                                                            hps.rep_size))
+    model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
-def fgsm_evaluation(model, hps):
-    # helper function for particular epsilon
-    def test(model, hps, epsilon):
-        model.eval()
-        # Accuracy counter
-        correct = 0
-        adv_examples = []
+    threshold_list = []
+    for label_id in range(hps.n_classes):
+        # No data augmentation(crop_flip=False) when getting in-distribution thresholds
+        dataset = get_dataset(data_name=hps.problem, train=True, label_id=label_id, crop_flip=False)
+        in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
-        dataset = get_dataset(data_name=hps.problem, train=False)
-        test_loader = DataLoader(dataset=dataset, batch_size=1, shuffle=False)
-
-        # Loop over all examples in test set
-        for x, y in test_loader:
+        print('Inference on {}, label_id {}'.format(hps.problem, label_id))
+        in_ll_list = []
+        for batch_id, (x, y) in enumerate(in_test_loader):
             x = x.to(hps.device)
             y = y.to(hps.device)
-            # Set requires_grad attribute of tensor. Important for Attack
-            x.requires_grad = True
+            outs = model(x)
+            if hps.use_prob:
+                outs = F.softmax(outs, dim=-1)
 
-            # Forward pass the data through the model
-            output = F.log_softmax(model(x), dim=1)
-            init_pred = output.max(1, keepdim=True)[1]  # get the index of the max log-probability
+            correct_idx = outs.argmax(dim=1) == y
 
-            # If the initial prediction is wrong, dont bother attacking, just move on
-            if init_pred.item() != y.item():
-                continue
+            outs_, y_ = outs[correct_idx], y[correct_idx]  # choose samples are classified correctly
+            in_ll_list += list(outs_[:, label_id].detach().cpu().numpy())
 
-            # Calculate the loss
-            loss = F.nll_loss(output, y)
+        thresh_idx = int(hps.percentile * len(in_ll_list))
+        thresh = sorted(in_ll_list)[thresh_idx]
+        print('threshold_idx/total_size: {}/{}, threshold: {:.3f}'.format(thresh_idx, len(in_ll_list), thresh))
+        threshold_list.append(thresh)  # class mean as threshold
 
-            # Zero all existing gradients
-            model.zero_grad()
+    shape = x.size()
 
-            # Calculate gradients of model in backward pass
-            loss.backward()
+    batch_size = 100
+    n_batches = 100
 
-            # Collect datagrad
-            data_grad = x.grad.data
+    reject_acc_dict = dict([(str(label_id), []) for label_id in range(hps.n_classes)])
+    # Noise as out-distribution samples
+    for batch_id in range(n_batches):
+        noises = torch.randn((batch_size, shape[1], shape[2], shape[3])).uniform_(0., 1.).to(hps.device) # sample noise
+        outs = model(noises)
+        if hps.use_prob:
+            outs = F.softmax(outs, dim=-1)
 
-            # Call FGSM Attack
-            perturbed_data = fgsm_attack(x, epsilon, data_grad)
+        for label_id in range(hps.n_classes):
+            # samples whose ll lower than threshold will be successfully rejected.
+            acc = (outs[:, label_id] < threshold_list[label_id]).float().mean().item()
+            reject_acc_dict[str(label_id)].append(acc)
 
-            # Re-classify the perturbed image
-            output = model(perturbed_data)
+    print('==================== Noise OOD Summary ====================')
+    print('In-distribution dataset: {}, Out-distribution dataset: Noise ~ Uniform[0, 1]'.format(hps.problem))
+    rate_list = []
+    for label_id in range(hps.n_classes):
+        acc = np.mean(reject_acc_dict[str(label_id)])
+        rate_list.append(acc)
+        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, acc))
 
-            # Check for success
-            final_pred = output.max(1, keepdim=True)[1]  # get the index of the max log-probability
-            if final_pred.item() == y.item():
-                correct += 1
-                # Special case for saving 0 epsilon examples
-                if (epsilon == 0) and (len(adv_examples) < 5):
-                    adv_ex = perturbed_data.squeeze().detach().cpu().numpy()
-                    adv_examples.append((init_pred.item(), final_pred.item(), adv_ex))
-            else:
-                # Save some adv examples for visualization later
-                if len(adv_examples) < 5:
-                    adv_ex = perturbed_data.squeeze().detach().cpu().numpy()
-                    adv_examples.append((init_pred.item(), final_pred.item(), adv_ex))
+    print('Mean reject success rate: {:.4f}'.format(np.mean(rate_list)))
+    print('===========================================================')
 
-        # Calculate final accuracy for this epsilon
-        final_acc = correct / float(len(test_loader))
-        print("Epsilon: {}\tTest Accuracy = {} / {} = {}".format(epsilon, correct, len(test_loader), final_acc))
+    reject_acc_dict = dict([(str(label_id), []) for label_id in range(hps.n_classes)])
+    # Noise as out-distribution samples
+    for batch_id in range(n_batches):
+        noises = 0.5 + torch.randn((batch_size, shape[1], shape[2], shape[3])).clamp_(min=-0.5, max=0.5).to(hps.device)  # sample noise
+        ll = model(noises)
 
-        # Return the accuracy and an adversarial example
-        return final_acc, adv_examples
+        for label_id in range(hps.n_classes):
+            # samples whose ll lower than threshold will be successfully rejected.
+            acc = (ll[:, label_id] < threshold_list[label_id]).float().mean().item()
+            reject_acc_dict[str(label_id)].append(acc)
 
-    epsilons = [0., 0.05, .1, 0.15, .2, 0.25, .3]
+    print('==================== Noise OOD Summary ====================')
+    print('In-distribution dataset: {}, Out-distribution dataset: Noise ~ Normal(0.5, 1) clamped to [0, 1]'.format(hps.problem))
+    rate_list = []
+    for label_id in range(hps.n_classes):
+        acc = np.mean(reject_acc_dict[str(label_id)])
+        rate_list.append(acc)
+        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, acc))
 
-    print("load pre-trained model")
-    checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(hps.encoder_name, hps.problem))
-    model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
-    accuracies = []
-    examples = []
-
-    # Run test for each epsilon
-    for eps in epsilons:
-        acc, ex = test(model, hps, eps)
-        accuracies.append(acc)
-        examples.append(ex)
-
-    fgsm_checkpoint = dict(zip(epsilons, accuracies))
-    checkpoint_path = os.path.join(hps.log_dir, '{}_{}_fgsm.pth'.format(hps.encoder_name, hps.problem))
-    torch.save(fgsm_checkpoint, checkpoint_path)
+    print('Mean reject success rate: {:.4f}'.format(np.mean(rate_list)))
+    print('===========================================================')
 
 
 if __name__ == "__main__":
@@ -218,10 +209,10 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action='store_true', help="Verbose mode")
     parser.add_argument("--inference", action="store_true",
                         help="Used in inference mode")
-    parser.add_argument("--fgsm_attack", action="store_true",
-                        help="Perform FGSM attack")
-    parser.add_argument("--noise_attack", action="store_true",
-                        help="Perform noise attack")
+    parser.add_argument("--noise_ood", action="store_true",
+                        help="Perform noise as OoD detection")
+    parser.add_argument("--use_prob", action="store_true",
+                        help="Perform noise as OoD detection")
     parser.add_argument("--log_dir", type=str,
                         default='./logs', help="Location to save logs")
 
