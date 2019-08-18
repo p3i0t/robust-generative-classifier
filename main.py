@@ -252,6 +252,8 @@ def ood_inference(model, hps):
 
     if hps.problem == 'fashion':
         out_problem = 'mnist'
+    elif hps.problem == 'cifar10':
+        out_problem = 'svhn'
 
     threshold_list = []
     for label_id in range(hps.n_classes):
@@ -293,8 +295,13 @@ def ood_inference(model, hps):
 
     print('==================== OOD Summary ====================')
     print('In-distribution dataset: {}, Out-distribution dataset: {}'.format(hps.problem, out_problem))
+    rate_list = []
     for label_id in range(hps.n_classes):
-        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_dict[str(label_id)])))
+        acc = np.mean(reject_acc_dict[str(label_id)])
+        rate_list.append(acc)
+        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, acc))
+
+    print('Mean reject success rate: {:.4f}'.format(np.mean(rate_list)))
     print('=====================================================')
     # ll_checkpoint = {'fashion': in_ll_list, 'mnist': out_ll_list}
     # torch.save(ll_checkpoint, 'ood_sdim_{}_{}_d{}.pth'.format(model.encoder_name, hps.problem, hps.rep_size))
@@ -351,8 +358,13 @@ def noise_ood_inference(model, hps):
 
     print('==================== Noise OOD Summary ====================')
     print('In-distribution dataset: {}, Out-distribution dataset: Noise ~ Uniform[0, 1]'.format(hps.problem))
+    rate_list = []
     for label_id in range(hps.n_classes):
-        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_dict[str(label_id)])))
+        acc = np.mean(reject_acc_dict[str(label_id)])
+        rate_list.append(acc)
+        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, acc))
+
+    print('Mean reject success rate: {:.4f}'.format(np.mean(rate_list)))
     print('===========================================================')
 
     reject_acc_dict = dict([(str(label_id), []) for label_id in range(hps.n_classes)])
@@ -368,8 +380,13 @@ def noise_ood_inference(model, hps):
 
     print('==================== Noise OOD Summary ====================')
     print('In-distribution dataset: {}, Out-distribution dataset: Noise ~ Normal(0.5, 1) clamped to [0, 1]'.format(hps.problem))
+    rate_list = []
     for label_id in range(hps.n_classes):
-        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_dict[str(label_id)])))
+        acc = np.mean(reject_acc_dict[str(label_id)])
+        rate_list.append(acc)
+        print('Label id: {}, reject success rate: {:.4f}'.format(label_id, acc))
+
+    print('Mean reject success rate: {:.4f}'.format(np.mean(rate_list)))
     print('===========================================================')
 
 
