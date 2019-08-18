@@ -117,9 +117,7 @@ def noise_ood_inference(model, hps):
     torch.manual_seed(hps.seed)
     np.random.seed(hps.seed)
 
-    checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}.pth'.format(model.encoder_name,
-                                                                            hps.problem,
-                                                                            hps.rep_size))
+    checkpoint_path = os.path.join(hps.log_dir, '{}_{}.pth'.format(hps.encoder_name, hps.problem))
     model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
     threshold_list = []
