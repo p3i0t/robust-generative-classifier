@@ -137,7 +137,6 @@ def inference(model, hps):
 
 
 def inference_rejection(model, hps):
-    threshold_percent = 0.01
     torch.manual_seed(hps.seed)
     np.random.seed(hps.seed)
 
@@ -166,7 +165,7 @@ def inference_rejection(model, hps):
             ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
 
-        thresh_idx = int(threshold_percent * len(in_ll_list))
+        thresh_idx = int(hps.percentile * len(in_ll_list))
         thresh = sorted(in_ll_list)[thresh_idx]
         print('threshold_idx/total_size: {}/{}, threshold: {:.3f}'.format(thresh_idx, len(in_ll_list), thresh))
         threshold_list.append(thresh)  # class mean as threshold
@@ -272,8 +271,9 @@ def ood_inference(model, hps):
             ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
 
-        thresh = sorted(in_ll_list)[50]
-        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), thresh))
+        thresh_idx = int(hps.percentile * len(in_ll_list))
+        thresh = sorted(in_ll_list)[thresh_idx]
+        print('threshold_idx/total_size: {}/{}, threshold: {:.3f}'.format(thresh_idx, len(in_ll_list), thresh))
         threshold_list.append(thresh)  # class mean as threshold
 
     print('Inference on {}'.format(out_problem))
@@ -325,18 +325,12 @@ def noise_ood_inference(model, hps):
 
             correct_idx = ll.argmax(dim=1) == y
 
-            margin = 500
-            top2_ll = torch.topk(ll, k=2, dim=1)[0]
-            margin_idx = (top2_ll[:, 0] - top2_ll[:, 1]) > margin
-
-            idx = margin_idx & correct_idx # two conditions should be satisfied.
-
-            ll_, y_ = ll[idx], y[idx]  # choose samples are classified correctly
+            ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
 
-        thresh = sorted(in_ll_list)[100]
-        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), thresh))
-        #print('head 10: ', sorted(in_ll_list)[:10])
+        thresh_idx = int(hps.percentile * len(in_ll_list))
+        thresh = sorted(in_ll_list)[thresh_idx]
+        print('threshold_idx/total_size: {}/{}, threshold: {:.3f}'.format(thresh_idx, len(in_ll_list), thresh))
         threshold_list.append(thresh)  # class mean as threshold
 
     shape = x.size()
@@ -356,7 +350,7 @@ def noise_ood_inference(model, hps):
             reject_acc_dict[str(label_id)].append(acc)
 
     print('==================== Noise OOD Summary ====================')
-    print('In-distribution dataset: {}, Out-distribution dataset: Noise ~ Uniform[-1, 1]'.format(hps.problem))
+    print('In-distribution dataset: {}, Out-distribution dataset: Noise ~ Uniform[0, 1]'.format(hps.problem))
     for label_id in range(hps.n_classes):
         print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_dict[str(label_id)])))
     print('===========================================================')
@@ -373,7 +367,7 @@ def noise_ood_inference(model, hps):
             reject_acc_dict[str(label_id)].append(acc)
 
     print('==================== Noise OOD Summary ====================')
-    print('In-distribution dataset: {}, Out-distribution dataset: Noise ~ Normal(0, 1) clamped to [-1, 1]'.format(hps.problem))
+    print('In-distribution dataset: {}, Out-distribution dataset: Noise ~ Normal(0.5, 1) clamped to [0, 1]'.format(hps.problem))
     for label_id in range(hps.n_classes):
         print('Label id: {}, reject success rate: {:.4f}'.format(label_id, np.mean(reject_acc_dict[str(label_id)])))
     print('===========================================================')
@@ -426,6 +420,10 @@ if __name__ == "__main__":
                         help="Weight decay. Switched off by default.")
     parser.add_argument("--epochs", type=int, default=500,
                         help="Total number of training epochs")
+
+    # Inference hyperparams:
+    parser.add_argument("--percentile", type=float, default=0.01,
+                        help="percentile value for inference with rejection.")
 
     # Model hyperparams:
     parser.add_argument("--image_size", type=int,
