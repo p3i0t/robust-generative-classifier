@@ -278,10 +278,8 @@ if __name__ == "__main__":
 
     print('==>  # Model parameters: {}.'.format(cal_parameters(model)))
 
-    if hps.fgsm_attack:
-        fgsm_evaluation(model, hps)
-    # elif hps.noise_attack:
-    #     noise_attack(model, hps)
+    if hps.noise_ood:
+        noise_ood_inference(model, hps)
     elif hps.inference:
         inference(model, hps)
     else:
