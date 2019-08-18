@@ -137,7 +137,7 @@ def inference(model, hps):
 
 
 def inference_rejection(model, hps):
-    threshold_percent = 0.02
+    threshold_percent = 0.01
     torch.manual_seed(hps.seed)
     np.random.seed(hps.seed)
 
@@ -180,6 +180,8 @@ def inference_rejection(model, hps):
     n_reject = 0
 
     thresholds = torch.tensor(threshold_list).to(hps.device)
+    result_str = ' & '.join('{:.1f}'.format(ll) for ll in threshold_list)
+    print('thresholds: ', result_str)
 
     for batch_id, (x, target) in enumerate(test_loader):
         # Note that images are scaled to [-1.0, 1.0]
