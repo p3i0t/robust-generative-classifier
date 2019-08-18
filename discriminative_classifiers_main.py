@@ -239,6 +239,10 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=500,
                         help="Total number of training epochs")
 
+    # Inference hyperparams:
+    parser.add_argument("--percentile", type=float, default=0.01,
+                        help="percentile value for inference with rejection.")
+
     # Model hyperparams:
     parser.add_argument("--image_size", type=int,
                         default=32, help="Image size")
