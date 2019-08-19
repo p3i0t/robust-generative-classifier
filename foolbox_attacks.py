@@ -172,7 +172,8 @@ if __name__ == "__main__":
 
         img, label = x[0], y[0]
 
-        adversarial = attack(img.cpu().numpy(), label.cpu().numpy(), confidence=500, max_iterations=1000)
+        adversarial = attack(img.cpu().numpy(), label.cpu().numpy())
+        #adversarial = attack(img.cpu().numpy(), label.cpu().numpy(), confidence=500, max_iterations=1000)
 
         ll = model(img.unsqueeze(dim=0).to(hps.device))
 

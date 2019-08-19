@@ -159,7 +159,8 @@ def attack_run_rejection_policy(model, adversary, hps):
         advcorrect += pred[confidence_idx].eq(target[confidence_idx]).sum().item()
         adv_reject += reject_idx.float().sum().item()
 
-        # if batch_id == 2:
+        if batch_id == 0:
+            break
         #     exit(0)
 
     n = len(test_loader.dataset)
@@ -227,13 +228,13 @@ def l2PGD_attack(model, hps):
 def cw_l2_attack(model, hps):
 
     print('============== CW_l2 Summary ===============')
-    confidence = 500
+    confidence = 10
     adversary = CarliniWagnerL2Attack(model,
                                       num_classes=10,
                                       confidence=confidence,
                                       clip_min=0.,
                                       clip_max=1.,
-                                      max_iterations=500
+                                      max_iterations=1000
                                       )
     print('confidence = {}'.format(confidence))
     attack_run_rejection_policy(model, adversary, hps)
