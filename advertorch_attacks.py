@@ -11,7 +11,7 @@ from torchvision.utils import save_image
 from resnet import build_resnet_32x32
 from sdim import SDIM
 
-from advertorch.attacks import LinfPGDAttack, L2PGDAttack, CarliniWagnerL2Attack, GradientSignAttack
+from advertorch.attacks import LinfPGDAttack, CarliniWagnerL2Attack, GradientSignAttack, JacobianSaliencyMapAttack
 
 from utils import get_dataset, cal_parameters
 
@@ -22,7 +22,6 @@ def attack_run(model, adversary, hps):
     # hps.n_batch_test = 1
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
-    model.eval()
     test_clnloss = 0
     clncorrect = 0
     test_advloss = 0
@@ -82,7 +81,15 @@ def attack_run(model, adversary, hps):
 
 
 def attack_run_rejection_policy(model, adversary, hps):
+    """
+    An attack run with rejection policy.
+    :param model: Pytorch model.
+    :param adversary: Advertorch adversary.
+    :param hps: hyperparameters
+    :return: 
+    """
     model.eval()
+
     # Get thresholds
     threshold_list = []
     for label_id in range(hps.n_classes):
@@ -101,9 +108,10 @@ def attack_run_rejection_policy(model, adversary, hps):
 
             ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
-        
-        thresh = sorted(in_ll_list)[100]
-        print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), thresh))
+
+        thresh_idx = int(hps.percentile * len(in_ll_list))
+        thresh = sorted(in_ll_list)[thresh_idx]
+        print('threshold_idx/total_size: {}/{}, threshold: {:.3f}'.format(thresh_idx, len(in_ll_list), thresh))
         threshold_list.append(thresh)  # class mean as threshold
 
     # Evaluation
@@ -111,9 +119,8 @@ def attack_run_rejection_policy(model, adversary, hps):
     # hps.n_batch_test = 1
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
-    clncorrect = 0
-    cln_reject = 0
-    advcorrect = 0
+    n_correct = 0
+    adv_correct = 0
     adv_reject = 0
 
     attack_path = os.path.join(hps.attack_dir, hps.attack)
@@ -122,53 +129,36 @@ def attack_run_rejection_policy(model, adversary, hps):
 
     thresholds = torch.tensor(threshold_list).to(hps.device)
 
-    for batch_id, (clndata, target) in enumerate(test_loader):
-        # Note that images are scaled to [-1.0, 1.0]
-        clndata, target = clndata.to(hps.device), target.to(hps.device)
-        path = os.path.join(attack_path, 'original_{}.png'.format(batch_id))
-        save_image(clndata, path, normalize=True)
-
+    for batch_id, (x, y) in enumerate(test_loader):
+        # Note that images are scaled to [0., 1.0]
+        x, y = x.to(hps.device), y.to(hps.device)
         with torch.no_grad():
-            output = model(clndata)
+            output = model(x)
 
-        # print('original logits ', output.detach().cpu().numpy())
-        # test_clnloss += F.cross_entropy(
-        #     output, target, reduction='sum').item()
+        pred = output.argmax(dim=1)
+        correct_idx = pred == y
+        x, y = x[correct_idx], y[correct_idx] # Only evaluate on the correct classified samples
+        n_correct += correct_idx.sum().item()
+
+        adv_x = adversary.perturb(x, y)
+        with torch.no_grad():
+            output = model(adv_x)
+
         values, pred = output.max(dim=1)
         confidence_idx = values >= thresholds[pred]
         reject_idx = values < thresholds[pred]
 
-        clncorrect += pred[confidence_idx].eq(target[confidence_idx]).sum().item()
-        cln_reject += reject_idx.float().sum().item()
-
-        advdata = adversary.perturb(clndata, target)
-        path = os.path.join(attack_path, '{}perturbed_{}.png'.format(prefix, batch_id))
-        save_image(advdata, path, normalize=True)
-
-        with torch.no_grad():
-            output = model(advdata)
-        # print('adv logits ', output.detach().cpu().numpy())
-
-        # test_advloss += F.cross_entropy(
-        #     output, target, reduction='sum').item()
-        values, pred = output.max(dim=1)
-        confidence_idx = values >= thresholds[pred]
-        reject_idx = values < thresholds[pred]
-
-        # pred = output.max(1, keepdim=True)[1]
-        advcorrect += pred[confidence_idx].eq(target[confidence_idx]).sum().item()
+        adv_correct += pred[confidence_idx].eq(y[confidence_idx]).sum().item()
         adv_reject += reject_idx.float().sum().item()
 
-        if batch_id == 0:
-            break
-        #     exit(0)
+        if batch_id % 10 == 0:
+            print('Evaluating on {}-th batch ...'.format(batch_id + 1))
 
     n = len(test_loader.dataset)
-    print('Test set: cln acc: {:.4f}, reject rate: {:.4f}'.format(clncorrect / n, cln_reject / n))
-    print('Test set: adv acc: {:.4f}, reject success rate: {:.4f}'.format(advcorrect / n, adv_reject / n))
+    print('Test set, reject success rate: {}/{}={:.4f}'.format(adv_reject, n_correct, adv_reject / n_correct))
 
-    cln_acc = clncorrect / len(test_loader.dataset)
-    adv_acc = advcorrect / len(test_loader.dataset)
+    cln_acc = n_correct / n
+    adv_acc = adv_correct / n
     return cln_acc, adv_acc
 
 
@@ -210,25 +200,10 @@ def linfPGD_attack(model, hps):
     print('============== LinfPGD Summary ===============')
 
 
-def l2PGD_attack(model, hps):
-    eps_list = [0.1, 0.1, 0.2, 0.3, 0.4, 0.5]
-
-    print('============== L2PGD Summary ===============')
-    for eps in eps_list:
-        adversary = L2PGDAttack(
-            model, loss_fn=nn.CrossEntropyLoss(reduction="sum"), eps=eps,
-            nb_iter=40, eps_iter=0.01, rand_init=True, clip_min=-1.0,
-            clip_max=1.0, targeted=hps.targeted)
-        print('epsilon = {:.4f}'.format(adversary.eps))
-        attack_run(model, adversary, hps)
-
-    print('============== L2PGD Summary ===============')
-
-
 def cw_l2_attack(model, hps):
 
     print('============== CW_l2 Summary ===============')
-    confidence = 10
+    confidence = 100
     adversary = CarliniWagnerL2Attack(model,
                                       num_classes=10,
                                       confidence=confidence,
@@ -240,6 +215,17 @@ def cw_l2_attack(model, hps):
     attack_run_rejection_policy(model, adversary, hps)
 
     print('============== CW_l2 Summary ===============')
+
+
+def jsma_attack(model, hps):
+    print('============== JSMA Summary ===============')
+    adversary = JacobianSaliencyMapAttack(model,
+                                          num_classes=10,
+                                          clip_min=0.,
+                                          clip_max=1.
+                                          )
+    attack_run_rejection_policy(model, adversary, hps)
+    print('============== JSMA Summary ===============')
 
 
 if __name__ == "__main__":
@@ -294,6 +280,10 @@ if __name__ == "__main__":
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
 
+    # Inference hyperparams:
+    parser.add_argument("--percentile", type=float, default=0.01,
+                        help="percentile value for inference with rejection.")
+
     # Attack parameters
     parser.add_argument("--targeted", action="store_true",
                         help="whether perform targeted attack")
@@ -347,26 +337,11 @@ if __name__ == "__main__":
 
     if not os.path.exists(hps.attack_dir):
         os.mkdir(hps.attack_dir)
-    # from cw_attack import cw
-    # model.eval()
-    #
-    # for batch_id, (x, y) in enumerate(test_loader):
-    #     x = x.to(hps.device)
-    #     y = y.to(hps.device)
-    #     adv_example, noise, adv_logits = cw(model, x, y, targeted=False, max_iter=2000, learning_rate=2e-3)
-    #     save_image(x, os.path.join(image_dir, 'original{}.png'.format(batch_id)))
-    #     save_image(adv_example, os.path.join(image_dir, 'adv{}.png'.format(batch_id)))
-    #     save_image(noise, os.path.join(image_dir, 'noise{}.png'.format(batch_id)))
-    #     print('logits: ', model(x).detach().numpy())
-    #     print('adv logits: ', adv_logits.detach().numpy())
-    #     if batch_id == 0:
-    #         break
-    # exit(0)
 
     if hps.attack == 'pgdinf':
         linfPGD_attack(model, hps)
-    elif hps.attack == 'pgd2':
-        l2PGD_attack(model, hps)
+    elif hps.attack == 'jsma':
+        jsma_attack(model, hps)
     elif hps.attack == 'cw':
         cw_l2_attack(model, hps)
     elif hps.attack == 'fgsm':
