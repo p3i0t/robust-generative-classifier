@@ -2,15 +2,11 @@ import argparse
 import sys
 import os
 
-import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
 from torchvision.utils import save_image
-from torch.optim import Adam
 
 from resnet import build_resnet_32x32
 from sdim import SDIM
@@ -106,7 +102,7 @@ def attack_run_rejection_policy(model, adversary, hps):
             ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
         
-        thresh = sorted(in_ll_list)[50]
+        thresh = sorted(in_ll_list)[100]
         print('len: {}, threshold (min ll): {:.4f}'.format(len(in_ll_list), thresh))
         threshold_list.append(thresh)  # class mean as threshold
 
@@ -229,20 +225,18 @@ def l2PGD_attack(model, hps):
 
 
 def cw_l2_attack(model, hps):
-    confidence_list = [0., 10, 20, 30, 30]
 
     print('============== CW_l2 Summary ===============')
-    for confidence in confidence_list:
-        adversary = CarliniWagnerL2Attack(model,
-                                          num_classes=10,
-                                          confidence=confidence,
-                                          clip_min=0.,
-                                          clip_max=1.,
-                                          max_iterations=200
-                                          )
-        print('confidence = {}'.format(adversary.confidence))
-        hps.n_batch_test = 5 
-        attack_run(model, adversary, hps)
+    confidence = 500
+    adversary = CarliniWagnerL2Attack(model,
+                                      num_classes=10,
+                                      confidence=confidence,
+                                      clip_min=0.,
+                                      clip_max=1.,
+                                      max_iterations=500
+                                      )
+    print('confidence = {}'.format(confidence))
+    attack_run_rejection_policy(model, adversary, hps)
 
     print('============== CW_l2 Summary ===============')
 
@@ -274,7 +268,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_batch_train", type=int,
                         default=128, help="Minibatch size")
     parser.add_argument("--n_batch_test", type=int,
-                        default=16, help="Minibatch size")
+                        default=100, help="Minibatch size")
     parser.add_argument("--optimizer", type=str,
                         default="adam", help="adam or adamax")
     parser.add_argument("--lr", type=float, default=0.001,
@@ -293,7 +287,7 @@ if __name__ == "__main__":
     parser.add_argument("--mi_units", type=int,
                         default=256, help="output size of 1x1 conv network for mutual information estimation")
     parser.add_argument("--rep_size", type=int,
-                        default=128, help="size of the global representation from encoder")
+                        default=64, help="size of the global representation from encoder")
     parser.add_argument("--encoder_name", type=str, default='resnet25',
                         help="encoder name: resnet#")
     parser.add_argument('--no-cuda', action='store_true', default=False,

@@ -1,16 +1,10 @@
 import argparse
 import sys
 import os
-
 import numpy as np
 
-# from models.dim import DIM
-
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
 from torch.optim import Adam
 from tensorboardX import SummaryWriter
 
@@ -448,7 +442,7 @@ if __name__ == "__main__":
     parser.add_argument("--mi_units", type=int,
                         default=256, help="output size of 1x1 conv network for mutual information estimation")
     parser.add_argument("--rep_size", type=int,
-                        default=128, help="size of the global representation from encoder")
+                        default=64, help="size of the global representation from encoder")
     parser.add_argument("--encoder_name", type=str, default='resnet25',
                         help="encoder name: resnet#")
     parser.add_argument('--no-cuda', action='store_true', default=False,
