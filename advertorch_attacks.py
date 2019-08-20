@@ -86,7 +86,7 @@ def attack_run_rejection_policy(model, adversary, hps):
     :param model: Pytorch model.
     :param adversary: Advertorch adversary.
     :param hps: hyperparameters
-    :return: 
+    :return:
     """
     model.eval()
 
@@ -119,9 +119,9 @@ def attack_run_rejection_policy(model, adversary, hps):
     # hps.n_batch_test = 1
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
-    n_correct = 0
-    adv_correct = 0
-    adv_reject = 0
+    n_correct = 0   # total number of correct classified samples by clean classifier
+    n_successful_adv = 0  # total number of successful adversarial examples generated
+    n_rejected_adv = 0   # total number of successfully rejected (successful) adversarial examples, <= n_successful_adv
 
     attack_path = os.path.join(hps.attack_dir, hps.attack)
     if not os.path.exists(attack_path):
@@ -137,29 +137,32 @@ def attack_run_rejection_policy(model, adversary, hps):
 
         pred = output.argmax(dim=1)
         correct_idx = pred == y
-        x, y = x[correct_idx], y[correct_idx] # Only evaluate on the correct classified samples
+        x, y = x[correct_idx], y[correct_idx]  # Only evaluate on the correct classified samples by clean classifier.
         n_correct += correct_idx.sum().item()
 
         adv_x = adversary.perturb(x, y)
         with torch.no_grad():
             output = model(adv_x)
 
-        values, pred = output.max(dim=1)
-        confidence_idx = values >= thresholds[pred]
-        reject_idx = values < thresholds[pred]
+        pred = output.argmax(dim=1)
+        successful_idx = pred != y   # idx of successful adversarial examples.
+        values, pred = output[successful_idx].max(dim=1)
+        # confidence_idx = values >= thresholds[pred]
+        reject_idx = values < thresholds[pred]  # idx of successfully rejected samples.
 
-        adv_correct += pred[confidence_idx].eq(y[confidence_idx]).sum().item()
-        adv_reject += reject_idx.float().sum().item()
+        # adv_correct += pred[confidence_idx].eq(y[confidence_idx]).sum().item()
+        n_successful_adv += successful_idx.float().sum().item()
+        n_rejected_adv += reject_idx.float().sum().item()
 
         if batch_id % 10 == 0:
             print('Evaluating on {}-th batch ...'.format(batch_id + 1))
 
     n = len(test_loader.dataset)
-    print('Test set, reject success rate: {}/{}={:.4f}'.format(adv_reject, n_correct, adv_reject / n_correct))
-
-    cln_acc = n_correct / n
-    adv_acc = adv_correct / n
-    return cln_acc, adv_acc
+    reject_rate = n_rejected_adv / n_successful_adv
+    success_adv_rate = n_successful_adv / n_correct
+    print('Test set, clean classification accuracy: {}/{}={:.4f}'.format(n_correct, n, n_correct / n))
+    print('success rate of adv examples generation: {}/{}={:.4f}'.format(n_successful_adv, n_correct, success_adv_rate))
+    print('reject success rate: {}/{}={:.4f}'.format(n_rejected_adv, n_successful_adv, reject_rate))
 
 
 def fgsm_attack(model, hps):
@@ -203,7 +206,7 @@ def linfPGD_attack(model, hps):
 def cw_l2_attack(model, hps):
 
     print('============== CW_l2 Summary ===============')
-    confidence = 100
+    confidence = hps.cw_confidence
     adversary = CarliniWagnerL2Attack(model,
                                       num_classes=10,
                                       confidence=confidence,
@@ -283,6 +286,8 @@ if __name__ == "__main__":
     # Inference hyperparams:
     parser.add_argument("--percentile", type=float, default=0.01,
                         help="percentile value for inference with rejection.")
+    parser.add_argument("--cw_confidence", type=float, default=0,
+                        help="confidence for CW attack.")
 
     # Attack parameters
     parser.add_argument("--targeted", action="store_true",
