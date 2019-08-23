@@ -51,7 +51,7 @@ def targeted_cw(model, adversary, hps):
             save_image(adv_x, path)
 
             ll = output.max(dim=-1)[1]
-            largest_logits.append(ll.cpu.item())
+            largest_logits.append(ll.cpu().item())
 
             out_str = ' '.join('{:.1f}'.format(logit) for logit in output[0].tolist())
             print('target: {}, logits: {}'.format(y_cur.cpu().item(), out_str))
