@@ -37,9 +37,8 @@ def targeted_cw(model, adversary, hps):
         y_targets = torch.arange(hps.n_classes).long().to(hps.device)
 
         for i in range(hps.n_classes):
-            yy = y_targets[i]
-            if yy != y:
-                adv_x = adversary.perturb(x, yy)
+            if i != y:
+                adv_x = adversary.perturb(x, torch.LongTensor([i]).to(hps.device))
             else:
                 adv_x = x
 
