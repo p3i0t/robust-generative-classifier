@@ -100,7 +100,7 @@ class CarliniWagnerL2Attack(Attack, LabelMixin):
 
         if self.targeted:
             adv_loss = clamp(other - real + self.confidence, min=0.)
-            threshold_loss = clamp(self.threshold - real, min=0.)
+            #threshold_loss = clamp(self.threshold - real, min=0.)
             #threshold_loss = clamp(real - self.threshold, min=0.)
         else:
             adv_loss = clamp(real - other + self.confidence, min=0.)
@@ -108,12 +108,12 @@ class CarliniWagnerL2Attack(Attack, LabelMixin):
         l2dist = (l2distsq).sum()
         # const = 0.001
         adv_loss = torch.sum(const * adv_loss)
-        threshold_loss = torch.sum(const * threshold_loss)
+        #threshold_loss = torch.sum(const * threshold_loss)
         # print('const ', const)
 
         loss = l2dist + adv_loss  #+ threshold_loss
         #loss = loss1 + loss2 + threshold_loss
-        return loss, l2dist, adv_loss, threshold_loss
+        return loss, l2dist, adv_loss
 
     def _get_arctanh_x(self, x):
         result = clamp((x - self.clip_min) / (self.clip_max - self.clip_min),
@@ -147,19 +147,18 @@ class CarliniWagnerL2Attack(Attack, LabelMixin):
             transimgs_rescale = tanh_rescale(x_atanh, self.clip_min, self.clip_max)
             output = self.predict(adv)
             l2distsq = calc_l2distsq(adv, transimgs_rescale)
-            loss, l2dist, adv_loss, threshold_loss = self._loss_fn(output, y_onehot, l2distsq, self.c)
+            loss, l2dist, adv_loss = self._loss_fn(output, y_onehot, l2distsq, self.c)
             loss.backward()
             optimizer.step()
 
             if ii % 1000 == 1:
-                print('step: {}, dis: {:.2f}, loss1: {:.2f}, threshold_loss: {:.2f}'.format(ii, l2dist.item(), adv_loss.item(),
-                                                                              threshold_loss.item()))
+                print('step: {}, dis: {:.2f}, loss1: {:.2f}.'.format(ii, l2dist.item(), adv_loss.item()))
 
-            if self.abort_early:
-                if ii % (self.max_iterations // NUM_CHECKS or 1) == 0:
-                    if loss > prevloss * ONE_MINUS_EPS:
-                        break
-                    prevloss = loss
+            # if self.abort_early:
+            #     if ii % (self.max_iterations // NUM_CHECKS or 1) == 0:
+            #         if loss > prevloss * ONE_MINUS_EPS:
+            #             break
+            #         prevloss = loss
 
             final_advs = adv.data
         return final_advs
