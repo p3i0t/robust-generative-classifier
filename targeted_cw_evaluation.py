@@ -47,7 +47,7 @@ def targeted_cw(model, adversary, hps):
                 output = model(adv_x)
 
             path = os.path.join(hps.attack_dir, 'targeted_cw_{}_{}_{}.png'.format(
-                hps.problem, hps.cw_confidence, y.cpu().item()))
+                hps.problem, hps.cw_confidence, y_cur.cpu().item()))
             save_image(adv_x, path)
 
             ll = output.max(dim=-1)[1]
@@ -117,7 +117,7 @@ if __name__ == '__main__':
     # Inference hyperparams:
     parser.add_argument("--percentile", type=float, default=0.01,
                         help="percentile value for inference with rejection.")
-    parser.add_argument("--cw_confidence", type=float, default=0,
+    parser.add_argument("--cw_confidence", type=int, default=0,
                         help="confidence for CW attack.")
 
     # Attack parameters
