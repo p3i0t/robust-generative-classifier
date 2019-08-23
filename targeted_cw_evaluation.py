@@ -34,6 +34,7 @@ def targeted_cw(model, adversary, hps):
         # Note that images are scaled to [0., 1.0]
         x, y = x.to(hps.device), y.to(hps.device)
 
+        largest_logits = []
         for i in range(hps.n_classes):
             if i != y:
                 y_cur = torch.LongTensor([i]).to(hps.device)
@@ -49,7 +50,11 @@ def targeted_cw(model, adversary, hps):
                 hps.problem, hps.cw_confidence, y.cpu().item()))
             save_image(adv_x, path)
 
-            print('target: {}, logits: {}'.format(y_cur.cpu().item(), output.tolist()))
+            ll = output.max(dim=-1)[1]
+            largest_logits.append(ll)
+
+            out_str = ' '.join('{:.1f}'.format(logit) for logit in output[0].tolist())
+            print('target: {}, logits: {}'.format(y_cur.cpu().item(), out_str))
 
         break
 
