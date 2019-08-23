@@ -50,7 +50,7 @@ def targeted_cw(model, adversary, hps):
                 hps.problem, hps.cw_confidence, y_cur.cpu().item()))
             save_image(adv_x, path)
 
-            ll = output.max(dim=-1)[1]
+            ll = output.max(dim=-1)[0]
             largest_logits.append(ll.cpu().item())
 
             out_str = ' '.join('{:.1f}'.format(logit) for logit in output[0].tolist())
