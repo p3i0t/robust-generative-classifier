@@ -51,10 +51,13 @@ def targeted_cw(model, adversary, hps):
             save_image(adv_x, path)
 
             ll = output.max(dim=-1)[1]
-            largest_logits.append(ll)
+            largest_logits.append(ll.cpu.item())
 
             out_str = ' '.join('{:.1f}'.format(logit) for logit in output[0].tolist())
             print('target: {}, logits: {}'.format(y_cur.cpu().item(), out_str))
+
+        out_str = ' & '.join('{:.1f}'.format(logit) for logit in largest_logits)
+        print('confidence: {}, largest_logits: {}'.format(hps.cw_confidence, out_str))
 
         break
 
