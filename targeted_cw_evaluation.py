@@ -34,22 +34,22 @@ def targeted_cw(model, adversary, hps):
         # Note that images are scaled to [0., 1.0]
         x, y = x.to(hps.device), y.to(hps.device)
 
-        y_targets = torch.arange(hps.n_classes).long().to(hps.device)
-
         for i in range(hps.n_classes):
             if i != y:
-                adv_x = adversary.perturb(x, torch.LongTensor([i]).to(hps.device))
+                y_cur = torch.LongTensor([i]).to(hps.device)
+                adv_x = adversary.perturb(x, )
             else:
+                y_cur = y
                 adv_x = x
 
             with torch.no_grad():
                 output = model(adv_x)
 
             path = os.path.join(hps.attack_dir, 'targeted_cw_{}_{}_{}.png'.format(
-                hps.problem, hps.cw_confidence, yy.cpu().item()))
+                hps.problem, hps.cw_confidence, y.cpu().item()))
             save_image(adv_x, path)
 
-            print('target: {}, logits: {}'.format(y.cpu().item(), output.tolist()))
+            print('target: {}, logits: {}'.format(y_cur.cpu().item(), output.tolist()))
 
         break
 
