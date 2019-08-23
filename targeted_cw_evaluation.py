@@ -39,7 +39,7 @@ def targeted_cw(model, adversary, hps):
         for i in range(hps.n_classes):
             yy = y_targets[i]
             if yy != y:
-                adv_x = adversary.perturb(x, y_targets)
+                adv_x = adversary.perturb(x, yy)
             else:
                 adv_x = x
 
