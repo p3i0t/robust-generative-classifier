@@ -178,27 +178,29 @@ def targeted_cw(model, adversary, hps):
     hps.n_batch_test = 1
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
+    import os
     for batch_id, (x, y) in enumerate(test_loader):
         # Note that images are scaled to [0., 1.0]
         x, y = x.to(hps.device), y.to(hps.device)
 
         y_targets = torch.arange(hps.n_classes).long().to(hps.device)
-        x = x.repeat(hps.n_classes, 1, 1, 1)
 
-        adv_x = adversary.perturb(x, y_targets)
-        with torch.no_grad():
-            output = model(adv_x)
+        for i in range(hps.n_classes):
+            yy = y_targets[i]
+            if yy != y:
+                adv_x = adversary.perturb(x, y_targets)
+            else:
+                adv_x = x
 
-        save_image(adv_x, 'targeted_cw_{}_{}.png'.format(hps.problem, hps.cw_confidence), nrow=10)
+            with torch.no_grad():
+                output = model(adv_x)
 
-        print('logits: ', output)
-        values, pred = output.max(dim=1)
+            path = os.path.join(hps.attack_dir, 'targeted_cw_{}_{}_{}.png'.format(
+                hps.problem, hps.cw_confidence, yy.cpu().item()))
+            save_image(adv_x, path)
 
-        pred_str = ' & '.join(pred.tolist())
-        print('adv pred: {}'.format(pred_str))
+            print('target: {}, logits: {}'.format(y.cpu().item(), output.tolist()))
 
-        ll_str = ' & '.join('{:.1f}'.format(var) for var in values.tolist())
-        print('log_likes: {}'.format(ll_str))
         break
 
 
