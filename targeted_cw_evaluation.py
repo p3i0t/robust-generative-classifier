@@ -51,7 +51,7 @@ def targeted_cw(model, adversary, hps):
                 hps.problem, hps.cw_confidence, y_cur.cpu().item()))
             save_image(adv_x, path)
 
-            ll, pred = output.max(dim=-1)[0]
+            ll, pred = output.max(dim=-1)
             largest_logits.append(ll.cpu().item())
             pred_list.append(pred.cpu().item())
 
