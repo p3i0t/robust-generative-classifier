@@ -181,7 +181,7 @@ if __name__ == '__main__':
         os.mkdir(hps.attack_dir)
 
     adversary = CarliniWagnerL2Attack(model, confidence=hps.cw_confidence,
-                                      num_classes=10, clip_min=0., clip_max=1., max_iterations=5000, targeted=True)
+                                      num_classes=10, clip_min=0., clip_max=1., max_iterations=10000, targeted=True)
 
     targeted_cw(model, adversary, hps)
 
