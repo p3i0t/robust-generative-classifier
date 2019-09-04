@@ -91,7 +91,8 @@ def attack_run_rejection_policy(model, adversary, hps):
     model.eval()
 
     # Get thresholds
-    threshold_list = []
+    threshold_list1 = []
+    threshold_list2 = []
     for label_id in range(hps.n_classes):
         # No data augmentation(crop_flip=False) when getting in-distribution thresholds
         dataset = get_dataset(data_name=hps.problem, train=True, label_id=label_id, crop_flip=False)
@@ -109,10 +110,13 @@ def attack_run_rejection_policy(model, adversary, hps):
             ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
             in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
 
-        thresh_idx = int(hps.percentile * len(in_ll_list))
-        thresh = sorted(in_ll_list)[thresh_idx]
-        print('threshold_idx/total_size: {}/{}, threshold: {:.3f}'.format(thresh_idx, len(in_ll_list), thresh))
-        threshold_list.append(thresh)  # class mean as threshold
+        thresh_idx = int(0.01 * len(in_ll_list))
+        thresh1 = sorted(in_ll_list)[thresh_idx]
+        thresh_idx = int(0.02 * len(in_ll_list))
+        thresh2 = sorted(in_ll_list)[thresh_idx]
+        threshold_list1.append(thresh1)  # class mean as threshold
+        threshold_list2.append(thresh2)  # class mean as threshold
+        print('1st & 2nd percentile thresholds: {:.3f}, {:.3f}'.format(thresh1, thresh2))
 
     # Evaluation
     dataset = get_dataset(data_name=hps.problem, train=False)
@@ -121,13 +125,15 @@ def attack_run_rejection_policy(model, adversary, hps):
 
     n_correct = 0   # total number of correct classified samples by clean classifier
     n_successful_adv = 0  # total number of successful adversarial examples generated
-    n_rejected_adv = 0   # total number of successfully rejected (successful) adversarial examples, <= n_successful_adv
+    n_rejected_adv1 = 0   # total number of successfully rejected (successful) adversarial examples, <= n_successful_adv
+    n_rejected_adv2 = 0   # total number of successfully rejected (successful) adversarial examples, <= n_successful_adv
 
     attack_path = os.path.join(hps.attack_dir, hps.attack)
     if not os.path.exists(attack_path):
         os.mkdir(attack_path)
 
-    thresholds = torch.tensor(threshold_list).to(hps.device)
+    thresholds1 = torch.tensor(threshold_list1).to(hps.device)
+    thresholds2 = torch.tensor(threshold_list2).to(hps.device)
 
     for batch_id, (x, y) in enumerate(test_loader):
         # Note that images are scaled to [0., 1.0]
@@ -148,21 +154,25 @@ def attack_run_rejection_policy(model, adversary, hps):
         successful_idx = pred != y   # idx of successful adversarial examples.
         values, pred = output[successful_idx].max(dim=1)
         # confidence_idx = values >= thresholds[pred]
-        reject_idx = values < thresholds[pred]  # idx of successfully rejected samples.
+        reject_idx1 = values < thresholds1[pred]  # idx of successfully rejected samples.
+        reject_idx2 = values < thresholds2[pred]  # idx of successfully rejected samples.
 
         # adv_correct += pred[confidence_idx].eq(y[confidence_idx]).sum().item()
         n_successful_adv += successful_idx.float().sum().item()
-        n_rejected_adv += reject_idx.float().sum().item()
+        n_rejected_adv1 += reject_idx1.float().sum().item()
+        n_rejected_adv2 += reject_idx2.float().sum().item()
 
         if batch_id % 10 == 0:
             print('Evaluating on {}-th batch ...'.format(batch_id + 1))
 
     n = len(test_loader.dataset)
-    reject_rate = n_rejected_adv / n_successful_adv
+    reject_rate1 = n_rejected_adv1 / n_successful_adv
+    reject_rate2 = n_rejected_adv2 / n_successful_adv
     success_adv_rate = n_successful_adv / n_correct
     print('Test set, clean classification accuracy: {}/{}={:.4f}'.format(n_correct, n, n_correct / n))
     print('success rate of adv examples generation: {}/{}={:.4f}'.format(n_successful_adv, n_correct, success_adv_rate))
-    print('reject success rate: {}/{}={:.4f}'.format(n_rejected_adv, n_successful_adv, reject_rate))
+    print('1st percentile, reject success rate: {}/{}={:.4f}'.format(n_rejected_adv1, n_successful_adv, reject_rate1))
+    print('2nd percentile, reject success rate: {}/{}={:.4f}'.format(n_rejected_adv2, n_successful_adv, reject_rate2))
 
 
 def fgsm_attack(model, hps):
