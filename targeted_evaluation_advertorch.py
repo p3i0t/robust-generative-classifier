@@ -56,10 +56,6 @@ def attack_run_rejection_policy(model, adversary, hps):
         print('1st & 2nd percentile thresholds: {:.3f}, {:.3f}'.format(thresh1, thresh2))
 
     # Evaluation
-    dataset = get_dataset(data_name=hps.problem, train=False)
-    hps.n_batch_test = 1
-    test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
-
     n_total = 0   # total number of correct classified samples by clean classifier
     n_successful_adv = 0  # total number of successful adversarial examples generated
     n_rejected_adv1 = 0   # total number of successfully rejected (successful) adversarial examples, <= n_successful_adv
@@ -74,45 +70,50 @@ def attack_run_rejection_policy(model, adversary, hps):
 
     l2_distortion_list = []
     n_eval = 0
-    for batch_id, (x, y) in enumerate(test_loader):
-        # Note that images are scaled to [0., 1.0]
-        x, y = x.to(hps.device), y.to(hps.device)
-        with torch.no_grad():
-            output = model(x)
 
-        pred = output.argmax(dim=1)
-        if (pred == y).sum() == 0:  # Only evaluate on the correct classified samples by clean classifier.
-            continue
+    hps.n_batch_test = 20
+    for label_id in range(hps.n_classes):
+        dataset = get_dataset(data_name=hps.problem, train=False, label_id=label_id)
+        test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+        for batch_id, (x, y) in enumerate(test_loader):
+            # Note that images are scaled to [0., 1.0]
+            x, y = x.to(hps.device), y.to(hps.device)
+            with torch.no_grad():
+                output = model(x)
 
-        n_eval += 1
-        if n_eval == 200:
-            break
+            pred = output.argmax(dim=1)
+            correct_idx = pred == y  # Only evaluate on the correct classified samples by clean classifier.
+            x, y = x[correct_idx], y[correct_idx]
 
-        for i in range(hps.n_classes):
-            if i != y:
-                n_total += 1
-                y_cur = torch.LongTensor([i]).to(hps.device)
-                adv_x = adversary.perturb(x, y_cur)
+            n_eval += correct_idx.sum().item()
 
-                with torch.no_grad():
-                    output = model(adv_x)
+            for id in range(hps.n_classes):
+                if label_id != id:
+                    n_total += 1
+                    y_cur = torch.LongTensor([id] * x.size(0)).to(hps.device)
+                    adv_x = adversary.perturb(x, y_cur)
 
-                logit, pred = output.max(dim=1)
+                    with torch.no_grad():
+                        output = model(adv_x)
 
-                if pred == y_cur:  # successfully classified as target y_cur
-                    n_successful_adv += 1
+                    logits, preds = output.max(dim=1)
+
+                    success_idx = preds == y_cur
+                    n_successful_adv += success_idx.sum().item()
 
                     diff = adv_x - x
                     l2_distortion = diff.norm(p=2, dim=-1).mean().item()  # mean l2 distortion
                     l2_distortion_list.append(l2_distortion)
 
-                    if logit < thresholds1[pred]:
-                        n_rejected_adv1 += 1
-                    if logit < thresholds2[pred]:
-                        n_rejected_adv2 += 1
+                    rej_idx1 = logits < thresholds1[preds]
+                    n_rejected_adv1 += rej_idx1.sum().item()
 
-        if batch_id % 10 == 0:
-            print('Evaluating on {}-th batch ...'.format(batch_id + 1))
+                    rej_idx2 = logits < thresholds2[preds]
+                    n_rejected_adv2 += rej_idx2.sum().item()
+
+            break  # only one batch
+
+        print('Evaluating on samples of class {} ...'.format(label_id))
 
     reject_rate1 = n_rejected_adv1 / n_successful_adv
     reject_rate2 = n_rejected_adv2 / n_successful_adv
