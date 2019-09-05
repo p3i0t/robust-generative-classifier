@@ -13,7 +13,114 @@ from sdim import SDIM
 
 from utils import get_dataset, cal_parameters
 
-from advertorch.attacks import CarliniWagnerL2Attack
+from advertorch.attacks import CarliniWagnerL2Attack, LocalSearchAttack
+import numpy as np
+
+
+def attack_run_rejection_policy(model, adversary, hps):
+    """
+    An attack run with rejection policy.
+    :param model: Pytorch model.
+    :param adversary: Advertorch adversary.
+    :param hps: hyperparameters
+    :return:
+    """
+    model.eval()
+
+    # Get thresholds
+    threshold_list1 = []
+    threshold_list2 = []
+    for label_id in range(hps.n_classes):
+        # No data augmentation(crop_flip=False) when getting in-distribution thresholds
+        dataset = get_dataset(data_name=hps.problem, train=True, label_id=label_id, crop_flip=False)
+        in_test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+
+        print('Inference on {}, label_id {}'.format(hps.problem, label_id))
+        in_ll_list = []
+        for batch_id, (x, y) in enumerate(in_test_loader):
+            x = x.to(hps.device)
+            y = y.to(hps.device)
+            ll = model(x)
+
+            correct_idx = ll.argmax(dim=1) == y
+
+            ll_, y_ = ll[correct_idx], y[correct_idx]  # choose samples are classified correctly
+            in_ll_list += list(ll_[:, label_id].detach().cpu().numpy())
+
+        thresh_idx = int(0.01 * len(in_ll_list))
+        thresh1 = sorted(in_ll_list)[thresh_idx]
+        thresh_idx = int(0.02 * len(in_ll_list))
+        thresh2 = sorted(in_ll_list)[thresh_idx]
+        threshold_list1.append(thresh1)  # class mean as threshold
+        threshold_list2.append(thresh2)  # class mean as threshold
+        print('1st & 2nd percentile thresholds: {:.3f}, {:.3f}'.format(thresh1, thresh2))
+
+    # Evaluation
+    dataset = get_dataset(data_name=hps.problem, train=False)
+    hps.n_batch_test = 1
+    test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
+
+    n_total = 0   # total number of correct classified samples by clean classifier
+    n_successful_adv = 0  # total number of successful adversarial examples generated
+    n_rejected_adv1 = 0   # total number of successfully rejected (successful) adversarial examples, <= n_successful_adv
+    n_rejected_adv2 = 0   # total number of successfully rejected (successful) adversarial examples, <= n_successful_adv
+
+    attack_path = os.path.join(hps.attack_dir, hps.attack)
+    if not os.path.exists(attack_path):
+        os.mkdir(attack_path)
+
+    thresholds1 = torch.tensor(threshold_list1).to(hps.device)
+    thresholds2 = torch.tensor(threshold_list2).to(hps.device)
+
+    l2_distortion_list = []
+    n_eval = 0
+    for batch_id, (x, y) in enumerate(test_loader):
+        # Note that images are scaled to [0., 1.0]
+        x, y = x.to(hps.device), y.to(hps.device)
+        with torch.no_grad():
+            output = model(x)
+
+        pred = output.argmax(dim=1)
+        if (pred == y).sum() == 0:  # Only evaluate on the correct classified samples by clean classifier.
+            continue
+
+        n_eval += 1
+        if n_eval == 200:
+            break
+
+        for i in range(hps.n_classes):
+            if i != y:
+                n_total += 1
+                y_cur = torch.LongTensor([i]).to(hps.device)
+                adv_x = adversary.perturb(x, y_cur)
+
+                with torch.no_grad():
+                    output = model(adv_x)
+
+                logit, pred = output.max(dim=1)
+
+                if pred == y_cur:  # successfully classified as target y_cur
+                    n_successful_adv += 1
+
+                    diff = adv_x - x
+                    l2_distortion = diff.norm(p=2, dim=-1).mean().item()  # mean l2 distortion
+                    l2_distortion_list.append(l2_distortion)
+
+                    if logit < thresholds1[pred]:
+                        n_rejected_adv1 += 1
+                    if logit < thresholds2[pred]:
+                        n_rejected_adv2 += 1
+
+        if batch_id % 10 == 0:
+            print('Evaluating on {}-th batch ...'.format(batch_id + 1))
+
+    reject_rate1 = n_rejected_adv1 / n_successful_adv
+    reject_rate2 = n_rejected_adv2 / n_successful_adv
+    success_adv_rate = n_successful_adv / n_total
+    print('success rate of adv examples generation: {}/{}={:.4f}'.format(n_successful_adv, n_total, success_adv_rate))
+    print('Mean L2 distortion of Adv Examples: {:.4f}'.format(np.mean(l2_distortion_list)))
+    print('1st percentile, reject success rate: {}/{}={:.4f}'.format(n_rejected_adv1, n_successful_adv, reject_rate1))
+    print('2nd percentile, reject success rate: {}/{}={:.4f}'.format(n_rejected_adv2, n_successful_adv, reject_rate2))
 
 
 def targeted_cw(model, adversary, hps):
@@ -67,6 +174,33 @@ def targeted_cw(model, adversary, hps):
         break
 
 
+def cw_l2_attack(model, hps):
+
+    print('============== CW_l2 Summary ===============')
+    confidence = hps.cw_confidence
+    adversary = CarliniWagnerL2Attack(model,
+                                      num_classes=10,
+                                      confidence=confidence,
+                                      clip_min=0.,
+                                      clip_max=1.,
+                                      max_iterations=1000,
+                                      targeted=True
+                                      )
+    print('confidence = {}'.format(confidence))
+    attack_run_rejection_policy(model, adversary, hps)
+
+    print('============== CW_l2 Summary ===============')
+
+
+def local_search_attack(model, hps):
+
+    print('============== LocalSearch Summary ===============')
+    adversary = LocalSearchAttack(model, targeted=True)
+    attack_run_rejection_policy(model, adversary, hps)
+
+    print('============== LocalSearch Summary ===============')
+
+
 if __name__ == '__main__':
     # This enables a ctr-C without triggering errors
     import signal
@@ -75,8 +209,6 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--verbose", action='store_true', help="Verbose mode")
-    parser.add_argument("--targeted_cw", action="store_true",
-                        help="Used in inference mode")
     parser.add_argument("--log_dir", type=str,
                         default='./logs', help="Location to save logs")
     parser.add_argument("--attack_dir", type=str,
@@ -128,7 +260,7 @@ if __name__ == '__main__':
     # Attack parameters
     parser.add_argument("--targeted", action="store_true",
                         help="whether perform targeted attack")
-    parser.add_argument("--attack", type=str, default='pgdinf',
+    parser.add_argument("--attack", type=str, default='cw',
                         help="Location of data")
 
     # Ablation
@@ -180,9 +312,9 @@ if __name__ == '__main__':
     if not os.path.exists(hps.attack_dir):
         os.mkdir(hps.attack_dir)
 
-    adversary = CarliniWagnerL2Attack(model, confidence=hps.cw_confidence,
-                                      num_classes=10, clip_min=0., clip_max=1., max_iterations=10000, targeted=True)
-
-    targeted_cw(model, adversary, hps)
+    if hps.attack == 'local':
+        local_search_attack(model, hps)
+    elif hps.attack == 'cw':
+        cw_l2_attack(model, hps)
 
 
