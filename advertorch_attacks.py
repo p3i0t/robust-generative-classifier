@@ -10,6 +10,7 @@ from torchvision.utils import save_image
 
 from resnet import build_resnet_32x32
 from sdim import SDIM
+import numpy as np
 
 from advertorch.attacks import LinfPGDAttack, CarliniWagnerL2Attack, GradientSignAttack, JacobianSaliencyMapAttack
 
@@ -135,6 +136,7 @@ def attack_run_rejection_policy(model, adversary, hps):
     thresholds1 = torch.tensor(threshold_list1).to(hps.device)
     thresholds2 = torch.tensor(threshold_list2).to(hps.device)
 
+    l2_distortion_list = []
     for batch_id, (x, y) in enumerate(test_loader):
         # Note that images are scaled to [0., 1.0]
         x, y = x.to(hps.device), y.to(hps.device)
@@ -150,6 +152,9 @@ def attack_run_rejection_policy(model, adversary, hps):
         with torch.no_grad():
             output = model(adv_x)
 
+        diff = adv_x - x
+        l2_distortion = diff.norm(p=2, dim=-1).mean().item()  # mean l2 distortion
+
         pred = output.argmax(dim=1)
         successful_idx = pred != y   # idx of successful adversarial examples.
         values, pred = output[successful_idx].max(dim=1)
@@ -162,6 +167,7 @@ def attack_run_rejection_policy(model, adversary, hps):
         n_rejected_adv1 += reject_idx1.float().sum().item()
         n_rejected_adv2 += reject_idx2.float().sum().item()
 
+        l2_distortion_list.append(l2_distortion)
         if batch_id % 10 == 0:
             print('Evaluating on {}-th batch ...'.format(batch_id + 1))
 
@@ -171,6 +177,7 @@ def attack_run_rejection_policy(model, adversary, hps):
     success_adv_rate = n_successful_adv / n_correct
     print('Test set, clean classification accuracy: {}/{}={:.4f}'.format(n_correct, n, n_correct / n))
     print('success rate of adv examples generation: {}/{}={:.4f}'.format(n_successful_adv, n_correct, success_adv_rate))
+    print('Mean L2 distortion of Adv Examples: {:.4f}'.format(np.mean(l2_distortion_list)))
     print('1st percentile, reject success rate: {}/{}={:.4f}'.format(n_rejected_adv1, n_successful_adv, reject_rate1))
     print('2nd percentile, reject success rate: {}/{}={:.4f}'.format(n_rejected_adv2, n_successful_adv, reject_rate2))
 
