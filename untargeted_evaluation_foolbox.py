@@ -13,7 +13,7 @@ from sdim import SDIM
 
 from utils import get_dataset, cal_parameters
 
-from foolbox.attacks import BoundaryAttack, SpatialAttack, DeepFoolL2Attack
+from foolbox.attacks import BoundaryAttack, SpatialAttack, DeepFoolL2Attack, LocalSearchAttack
 import numpy as np
 
 import foolbox
@@ -96,6 +96,9 @@ def attack_run_rejection_policy(model, hps):
             adv_x = attack(img.cpu().numpy(), label.cpu().numpy(), log_every_n_steps=10000)
         elif hps.attack == 'deepfool':
             attack = DeepFoolL2Attack(fmodel)
+            adv_x = attack(img.cpu().numpy(), label.cpu().numpy())
+        elif hps.attack == 'local':
+            attack = LocalSearchAttack(fmodel)
             adv_x = attack(img.cpu().numpy(), label.cpu().numpy())
         elif hps.attack == 'spatial':
             attack = SpatialAttack(fmodel)
