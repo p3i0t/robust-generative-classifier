@@ -246,6 +246,11 @@ if __name__ == '__main__':
         mu, log_sigma = model.class_conditional.class_embed.weight.split(dim=1, split_size=hps.rep_size)
         sigma = torch.exp(log_sigma).mean(dim=1)
         print("sigma: ", sigma.cpu().numpy())
+        mu_list = mu.split(dim=0, split_size=1)
+        import itertools
+        distances = [(a - b).norm(p=2) for (a, b) in itertools.combinations(mu_list, 2)]
+        print('mean distances of centers: ', np.mean(distances))
+
     else:
         n_encoder_layers = int(hps.encoder_name.strip('resnet'))
         model = build_resnet_32x32(n=n_encoder_layers,
