@@ -243,6 +243,9 @@ if __name__ == '__main__':
         checkpoint_path = os.path.join(hps.log_dir,
                                        'sdim_{}_{}_d{}.pth'.format(hps.encoder_name, hps.problem, hps.rep_size))
         model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
+        mu, log_sigma = model.class_conditional.class_embed.weight.split(dim=1, split_size=hps.rep_size)
+        sigma = torch.exp(log_sigma).mean(dim=1)
+        print("sigma: ", sigma.cpu().numpy())
     else:
         n_encoder_layers = int(hps.encoder_name.strip('resnet'))
         model = build_resnet_32x32(n=n_encoder_layers,
