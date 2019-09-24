@@ -222,13 +222,14 @@ class L2Adversary(object):
         # the binary search on `scale_const`
         targets_np = targets.clone().cpu().numpy()  # type: np.ndarray
 
+        device = next(model.parameters()).device
         # the type annotations here are used only for type hinting and do
         # not indicate the actual type (cuda or cpu); same applies to all codes
         # below
         # inputs = runutils.make_cuda_consistent(model, inputs)[0]  # type: torch.FloatTensor
         # targets = runutils.make_cuda_consistent(model, targets)[0]  # type: torch.FloatTensor
-        inputs = inputs.to(model.divice)
-        targets = targets.to(model.divice)
+        inputs = inputs.to(device)
+        targets = targets.to(device)
 
         # run the model a little bit to get the `num_classes`
         num_classes = model(Variable(inputs[0][None, :], requires_grad=False)).size(1)  # type: int
@@ -259,7 +260,7 @@ class L2Adversary(object):
         # the one-hot encoding of `targets`
         targets_oh = torch.zeros(targets.size() + (num_classes,))  # type: torch.FloatTensor
         #targets_oh = runutils.make_cuda_consistent(model, targets_oh)[0]
-        targets_oh = targets_oh.to(model.device)
+        targets_oh = targets_oh.to(device)
         targets_oh.scatter_(1, targets.unsqueeze(1), 1.0)
         targets_oh_var = Variable(targets_oh, requires_grad=False)
 
@@ -270,7 +271,7 @@ class L2Adversary(object):
         if self.init_rand:
             nn.init.normal(pert_tanh, mean=0, std=1e-3)
         #pert_tanh = runutils.make_cuda_consistent(model, pert_tanh)[0]
-        pert_tanh = pert_tanh.to(model.device)
+        pert_tanh = pert_tanh.to(device)
         pert_tanh_var = Variable(pert_tanh, requires_grad=True)
 
         optimizer = optim.Adam([pert_tanh_var], lr=self.optimizer_lr)
@@ -279,7 +280,7 @@ class L2Adversary(object):
                 scale_consts_np = upper_bounds_np
             scale_consts = torch.from_numpy(np.copy(scale_consts_np)).float()  # type: torch.FloatTensor
             #scale_consts = runutils.make_cuda_consistent(model, scale_consts)[0]
-            scale_consts = scale_consts.to(model.device)
+            scale_consts = scale_consts.to(device)
             scale_consts_var = Variable(scale_consts, requires_grad=False)
             print('Using scale consts:', list(scale_consts_np))  # FIXME
 
