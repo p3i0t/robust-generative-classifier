@@ -129,7 +129,7 @@ class SDIM(torch.nn.Module):
         # compute nll loss
         nll_loss = -(ll * pos_mask).sum(dim=1).mean()
 
-        pos_ll = torch.masked_select(ll, pos_mask.byte())
+        pos_ll = torch.masked_select(ll, pos_mask.bool())
         assert pos_ll.size(0) == x.size(0)
         gap_ll = pos_ll.unsqueeze(dim=1) - ll
 
