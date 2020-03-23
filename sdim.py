@@ -130,11 +130,12 @@ class SDIM(torch.nn.Module):
         nll_loss = -(ll * pos_mask).sum(dim=1).mean()
 
         pos_ll = torch.masked_select(ll, pos_mask.bool())
+        neg_ll = torch.masked_select(ll, (1 - pos_mask).bool())
         assert pos_ll.size(0) == x.size(0)
-        gap_ll = pos_ll.unsqueeze(dim=1) - ll
+        gap_ll = pos_ll.unsqueeze(dim=1) - neg_ll
 
         # log-likelihood margin loss
-        ll_margin = F.relu(self.margin - gap_ll).pow(2).mean()
+        ll_margin = F.relu(self.margin - gap_ll).mean()
 
         # total loss
         loss = self.alpha * mi_loss + self.beta * nll_loss + self.gamma * ll_margin
