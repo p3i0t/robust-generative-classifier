@@ -6,9 +6,8 @@ import math
 import resnet
 
 
-from losses.dim_losses import donsker_varadhan_loss, infonce_loss, fenchel_dual_loss, gated_fenchel_dual_loss
+from losses.dim_losses import donsker_varadhan_loss, infonce_loss, fenchel_dual_loss
 from mi_networks import MI1x1ConvNet
-from Flows import MaskedAutoregressiveFlow
 
 
 def cal_parameters(model):
@@ -45,24 +44,6 @@ class ClassConditionalGaussianMixture(nn.Module):
         return ll
 
 
-class ClassConditionalMAF(nn.Module):
-    def __init__(self, n_classes, embed_size):
-        super().__init__()
-        self.n_classes = n_classes
-        self.embed_size = embed_size
-        self.maf_list = nn.ModuleList([])
-        for i in range(self.n_classes):
-            self.maf_list.append(MaskedAutoregressiveFlow(self.embed_size, hidden_sizes=(128,), n_mades=2))
-
-    def forward(self, x):
-        ll_list = []
-        for i in range(self.n_classes):
-            ll_list.append(self.maf_list[i](x).unsqueeze(dim=1))
-
-        ll = torch.cat(ll_list, dim=1)
-        return ll
-
-
 def compute_dim_loss(l_enc, m_enc, measure, mode):
     '''Computes DIM loss.
     Args:
@@ -75,7 +56,6 @@ def compute_dim_loss(l_enc, m_enc, measure, mode):
     '''
 
     if mode == 'fd':
-        #loss = gated_fenchel_dual_loss(l_enc, m_enc, measure=measure)
         loss = fenchel_dual_loss(l_enc, m_enc, measure=measure)
     elif mode == 'nce':
         loss = infonce_loss(l_enc, m_enc)
@@ -88,13 +68,18 @@ def compute_dim_loss(l_enc, m_enc, measure, mode):
 
 
 class SDIM(torch.nn.Module):
-    def __init__(self, rep_size=64, n_classes=10, mi_units=128, encoder_name='resnet19', image_channel=1):
+    def __init__(self, rep_size=64, n_classes=10, mi_units=128, encoder_name='resnet10', image_channel=1, margin=5,
+                 alpha=0.33, beta=0.33, gamma=0.33):
         super().__init__()
         self.rep_size = rep_size
         self.n_classes = n_classes
         # self.input_shape = input_shape
         self.mi_units = mi_units
         self.encoder_name = encoder_name
+        self.margin = margin
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
 
         # build encoder
         n = int(encoder_name.strip('resnet'))
@@ -149,11 +134,10 @@ class SDIM(torch.nn.Module):
         gap_ll = pos_ll.unsqueeze(dim=1) - ll
 
         # log-likelihood margin loss
-        C = 10.
-        ll_margin = F.relu(C - gap_ll).pow(2).mean()
+        ll_margin = F.relu(self.margin - gap_ll).pow(2).mean()
 
         # total loss
-        loss = mi_loss + nll_loss + ll_margin
+        loss = self.alpha * mi_loss + self.beta * nll_loss + self.gamma * ll_margin
         return loss, mi_loss, nll_loss, ll_margin
 
     def forward(self, x, log_softmax=False):

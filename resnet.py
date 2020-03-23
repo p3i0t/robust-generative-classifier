@@ -142,9 +142,9 @@ class ResNet(nn.Module):
             return out_list[-1]
 
 
-def build_resnet_32x32(n=41, fc_size=10, image_channel=3):
-    assert (n - 1) % 8 == 0, '{} should be expressed in form of 6n+1'.format(n)
-    block_depth = int((n - 1) / 8)
+def build_resnet_32x32(n=26, fc_size=10, image_channel=3):
+    assert (n - 2) % 8 == 0, '{} should be expressed in form of 8n+2'.format(n)
+    block_depth = int((n - 2) / 8)
     return ResNet(BasicBlock, [block_depth]*4, num_classes=fc_size, image_channel=image_channel)
 
 #

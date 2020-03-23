@@ -53,61 +53,6 @@ def fenchel_dual_loss(l, m, measure=None):
     return loss
 
 
-def gated_fenchel_dual_loss(l, m, measure=None):
-    '''Computes the f-divergence distance between positive and negative joint distributions.
-    Note that vectors should be sent as 1x1.
-    Divergences supported are Jensen-Shannon `JSD`, `GAN` (equivalent to JSD),
-    Squared Hellinger `H2`, Chi-squeared `X2`, `KL`, and reverse KL `RKL`.
-    Args:
-        l: Local feature map.
-        m: Multiple globals feature map.
-        measure: f-divergence measure.
-    Returns:
-        torch.Tensor: Loss.
-    '''
-    N, units, n_locals = l.size()
-    n_multis = m.size(2)
-
-    l, l_att = torch.split(l, split_size_or_sections=units//2, dim=1)
-    m, m_att = torch.split(m, split_size_or_sections=units//2, dim=1)
-
-    units = units // 2
-    # First we make the input tensors the right shape.
-    l = l.view(N, units, n_locals)
-    l = l.permute(0, 2, 1)
-    l = l.reshape(-1, units)
-
-    m = m.view(N, units, n_multis)
-    m = m.permute(0, 2, 1)
-    m = m.reshape(-1, units)
-
-    # Outer product, we want a N x N  x n_multi x n_locals tensor.
-    u = torch.mm(m, l.t())
-    u = u.reshape(N, n_multis, N, n_locals).permute(0, 2, 1, 3)
-
-    # Since we have a big tensor with both positive and negative samples, we need to mask.
-    mask = torch.eye(N).to(l.device)
-    n_mask = 1 - mask
-
-    m_att = m_att.permute(0, 2, 1)  # (b, n_multis, units)
-    att_weights = torch.matmul(m_att, l_att)  # (b, n_multis, n_locals)
-    att_weights = F.softmax(att_weights, dim=-1).unsqueeze(dim=1)
-
-    # Compute the positive and negative score. Average the spatial locations.
-    E_pos = get_positive_expectation(u, measure, average=False) * att_weights
-    E_neg = get_negative_expectation(u, measure, average=False) * att_weights
-
-    E_pos = E_pos.sum(dim=3).mean(dim=2)
-    E_neg = E_neg.sum(dim=3).mean(dim=2)
-
-    # Mask positive and negative terms for positive and negative parts of loss
-    E_pos = (E_pos * mask).sum() / mask.sum()
-    E_neg = (E_neg * n_mask).sum() / n_mask.sum()
-    loss = E_neg - E_pos
-
-    return loss
-
-
 def infonce_loss(l, m):
     '''Computes the noise contrastive estimation-based loss, a.k.a. infoNCE.
     Note that vectors should be sent as 1x1.

@@ -6,7 +6,6 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import Adam
-from tensorboardX import SummaryWriter
 
 from sdim import SDIM
 from utils import get_dataset, cal_parameters
@@ -27,7 +26,6 @@ def train(model, optimizer, hps):
     dataset = get_dataset(data_name=hps.problem, train=False)
     test_loader = DataLoader(dataset=dataset, batch_size=hps.n_batch_test, shuffle=False)
 
-    writer = SummaryWriter()
     global_step = 0
     min_loss = 1e3
     for epoch in range(1, hps.epochs+1):
@@ -48,11 +46,6 @@ def train(model, optimizer, hps):
             loss.backward()
             optimizer.step()
 
-            writer.add_scalar('loss', loss.item(), global_step)
-            writer.add_scalar('mi', mi_loss.item(), global_step)
-            writer.add_scalar('nll', nll_loss.item(), global_step)
-            writer.add_scalar('margin', ll_margin.item(), global_step)
-
             loss_list.append(loss.item())
             mi_list.append(mi_loss.item())
             nll_list.append(nll_loss.item())
@@ -65,6 +58,7 @@ def train(model, optimizer, hps):
             np.mean(nll_list),
             np.mean(margin_list)
         ))
+
         if np.mean(loss_list) < min_loss:
             min_loss = np.mean(loss_list)
             checkpoint_path = os.path.join(hps.log_dir, 'sdim_{}_{}_d{}.pth'.format(model.encoder_name,
@@ -424,12 +418,13 @@ if __name__ == "__main__":
                         default="adam", help="adam or adamax")
     parser.add_argument("--lr", type=float, default=0.001,
                         help="Base learning rate")
-    parser.add_argument("--beta1", type=float, default=.9, help="Adam beta1")
-    parser.add_argument("--polyak_epochs", type=float, default=1,
-                        help="Nr of averaging epochs for Polyak and beta2")
-    parser.add_argument("--weight_decay", type=float, default=1.,
-                        help="Weight decay. Switched off by default.")
-    parser.add_argument("--epochs", type=int, default=500,
+    parser.add_argument("--alpha", type=float, default=0.33,
+                        help="alpha")
+    parser.add_argument("--beta", type=float, default=0.33,
+                        help="beta")
+    parser.add_argument("--gamma", type=float, default=0.33,
+                        help="gamma")
+    parser.add_argument("--epochs", type=int, default=100,
                         help="Total number of training epochs")
 
     # Inference hyperparams:
@@ -443,7 +438,9 @@ if __name__ == "__main__":
                         default=256, help="output size of 1x1 conv network for mutual information estimation")
     parser.add_argument("--rep_size", type=int,
                         default=64, help="size of the global representation from encoder")
-    parser.add_argument("--encoder_name", type=str, default='resnet25',
+    parser.add_argument("--margin", type=float, default=5,
+                        help="margin")
+    parser.add_argument("--encoder_name", type=str, default='resnet26',
                         help="encoder name: resnet#")
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
@@ -470,7 +467,11 @@ if __name__ == "__main__":
     model = SDIM(rep_size=hps.rep_size,
                  mi_units=hps.mi_units,
                  encoder_name=hps.encoder_name,
-                 image_channel=hps.image_channel
+                 image_channel=hps.image_channel,
+                 margin=hps.margin,
+                 alpha=hps.alpha,
+                 beta=hps.beta,
+                 gamma=hps.gamma
                  ).to(hps.device)
     optimizer = Adam(model.parameters(), lr=hps.lr)
 
